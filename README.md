@@ -1,178 +1,272 @@
-📚 Sistema de Biblioteca – Aplicación Web con React y Base de Datos
+# 📚 Sistema de Gestión Bibliotecaria
 
-Proyecto grupal – Aplicación web CRUD con React + Node.js/Express + MySQL. Referencia: Guía práctica SENATI (págs. 31–39).
+Aplicación web completa para gestión de una biblioteca.  
+**Stack:** React + Node.js / Express + MySQL
 
-1. Descripción del proyecto
-Problemática
+---
 
-La biblioteca gestiona libros, socios y préstamos de forma manual (cuadernos/Excel), lo que genera pérdida de información, libros sin control de devolución y dificultad para saber qué libros están disponibles.
+## 🗂 Estructura del proyecto
 
-Solución
-
-Una aplicación web que permite registrar, consultar, modificar y eliminar libros, autores, categorías, socios y préstamos, con control automático del stock disponible.
-
-Objetivo
-
-Diseñar e implementar una aplicación web funcional con React (Front end), API REST (Back end) y una base de datos relacional que almacene los datos del sistema (CRUD).
-
-2. Tecnologías
-Capa	Tecnología
-Front end	React (JavaScript), React Router, Axios, Bootstrap/CSS
-Back end	Node.js + Express (API REST)
-Base de datos	MySQL
-Control de versiones	Git + GitHub
-3. Estructura del repositorio
-sistema-biblioteca/
-├── README.md
-├── docs/
-│   ├── documento-proyecto.docx
-│   ├── diagrama-er.png
-│   └── evidencias-crud/
-├── database/
-│   └── biblioteca.sql
+```
+biblioteca-app/
 ├── backend/
-│   ├── package.json
-│   ├── .env.example
-│   └── src/
-│       ├── app.js
-│       ├── config/db.js
-│       ├── routes/
-│       ├── controllers/
-│       └── middlewares/ (validaciones y manejo de errores)
+│   ├── database/
+│   │   └── schema.sql          ← Script MySQL (23 tablas + datos seed)
+│   ├── src/
+│   │   ├── config/database.js  ← Conexión MySQL (pool)
+│   │   ├── middleware/
+│   │   │   ├── auth.js         ← Verificación JWT
+│   │   │   └── errorHandler.js ← Manejo global de errores
+│   │   ├── routes/
+│   │   │   ├── auth.js         ← POST /api/auth/login
+│   │   │   ├── libros.js       ← CRUD libros
+│   │   │   ├── lectores.js     ← CRUD lectores
+│   │   │   ├── prestamos.js    ← Préstamos, devoluciones, renovaciones
+│   │   │   ├── multas.js       ← Listado y pago de multas
+│   │   │   ├── reportes.js     ← Dashboard y estadísticas
+│   │   │   └── catalogo.js     ← Autores, editoriales, categorías
+│   │   └── server.js           ← Punto de entrada Express
+│   ├── .env                    ← Variables de entorno
+│   └── package.json
 └── frontend/
-    ├── package.json
-    └── src/
-        ├── components/   (Navbar, Tabla, Formulario, Modal, Alerta)
-        ├── pages/        (Inicio, Libros, Socios, Prestamos, Autores, Categorias)
-        ├── services/     (llamadas a la API)
-        ├── App.js
-        └── index.js
-4. Base de datos (propuesta)
+    ├── src/
+    │   ├── components/
+    │   │   ├── Navbar.jsx      ← Navegación responsiva
+    │   │   └── Modal.jsx       ← Modal genérico reutilizable
+    │   ├── context/
+    │   │   └── AuthContext.jsx ← Estado global de autenticación
+    │   ├── hooks/
+    │   │   └── useApi.js       ← Hook para peticiones HTTP
+    │   ├── pages/
+    │   │   ├── LoginPage.jsx
+    │   │   ├── DashboardPage.jsx
+    │   │   ├── LibrosPage.jsx
+    │   │   ├── LectoresPage.jsx
+    │   │   ├── PrestamosPage.jsx
+    │   │   ├── MultasPage.jsx
+    │   │   └── ReportesPage.jsx
+    │   ├── services/api.js     ← Cliente axios con interceptores JWT
+    │   ├── App.jsx             ← Rutas y protección de sesión
+    │   ├── main.jsx
+    │   └── index.css           ← Estilos globales responsivos
+    ├── index.html
+    ├── vite.config.js
+    └── package.json
+```
 
-Tablas (5, todas relacionadas):
+---
 
-categorias (id_categoria PK, nombre)
-autores (id_autor PK, nombre, nacionalidad)
-libros (id_libro PK, titulo, isbn UNIQUE, anio, stock, id_autor FK, id_categoria FK)
-socios (id_socio PK, nombre, dni UNIQUE, correo, telefono)
-prestamos (id_prestamo PK, id_libro FK, id_socio FK, fecha_prestamo, fecha_devolucion, estado)
+## ⚙️ Requisitos previos
 
-Relaciones:
+| Herramienta | Versión mínima |
+|-------------|---------------|
+| Node.js     | 18.x           |
+| npm         | 9.x            |
+| MySQL       | 8.0            |
 
-Un autor tiene muchos libros (1:N)
-Una categoría tiene muchos libros (1:N)
-Un socio tiene muchos préstamos (1:N)
-Un libro aparece en muchos préstamos (1:N)
+---
 
-Consultas SQL a incluir: libros con su autor y categoría (JOIN), préstamos activos por socio, libros más prestados (GROUP BY), libros con stock bajo.
+## 🚀 Instalación paso a paso
 
-Integridad: claves primarias y foráneas, UNIQUE en ISBN y DNI, NOT NULL en campos obligatorios, ON DELETE RESTRICT.
+### 1. Crear la base de datos en MySQL
 
-5. Endpoints de la API REST
-Recurso	GET	GET /:id	POST	PUT /:id	DELETE /:id
-/api/libros	✅	✅	✅	✅	✅
-/api/autores	✅	✅	✅	✅	✅
-/api/categorias	✅	✅	✅	✅	✅
-/api/socios	✅	✅	✅	✅	✅
-/api/prestamos	✅	✅	✅	✅ (devolver)	✅
-6. 👥 División del trabajo
+Abre **MySQL Workbench** o la consola de MySQL y ejecuta:
 
-Sustituye los nombres por los de tu grupo.
+```sql
+SOURCE C:/ruta/a/biblioteca-app/backend/database/schema.sql;
+```
 
-🧑‍💻 Integrante 1 – Base de datos y documentación
+O también:
+```bash
+mysql -u root -p < backend/database/schema.sql
+```
 
-Responsable de: database/ y docs/
+Esto crea la base de datos `biblioteca_db` con todas las tablas y datos iniciales.
 
- Redactar el documento con la problemática y descripción del proyecto
- Diseñar el Diagrama Entidad-Relación
- Escribir el script de creación de la BD (biblioteca.sql) con tablas, PK, FK e integridad
- Insertar datos de prueba
- Escribir las consultas SQL (JOIN, GROUP BY, filtros)
- Crear el repositorio en GitHub, proteger la rama main y configurar el .gitignore
- Recopilar las evidencias de las operaciones CRUD (capturas)
- Apoyar en el front: páginas de Autores y Categorías
-🧑‍💻 Integrante 2 – Back end (Node.js + Express)
+---
 
-Responsable de: backend/
+### 2. Configurar variables de entorno del backend
 
- Inicializar el proyecto Node y configurar Express, CORS y dotenv
- Configurar la conexión a MySQL (config/db.js)
- Crear rutas y controladores CRUD de libros, autores, categorías, socios y préstamos
- Validación de datos (campos vacíos, formato de DNI/correo, ISBN duplicado)
- Manejo de errores (middleware global, códigos HTTP 400/404/409/500)
- Lógica de préstamos: descontar stock al prestar y devolverlo al devolver
- Probar los endpoints con Postman o Thunder Client y guardar capturas
- Documentar los endpoints
-🧑‍💻 Integrante 3 – Front end (React)
+Edita el archivo `backend/.env`:
 
-Responsable de: frontend/
+```env
+PORT=3001
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=tu_contraseña_mysql
+DB_NAME=biblioteca_db
+JWT_SECRET=cambia_este_secreto_en_produccion
+JWT_EXPIRES=24h
+```
 
- Crear el proyecto React e instalar React Router, Axios y Bootstrap
- Componentes reutilizables: Navbar, Tabla, Formulario, Modal de confirmación, Alertas
- Navegación entre páginas con React Router
- Páginas de Libros, Socios y Préstamos (listar, crear, editar, eliminar)
- Formularios con validación (campos obligatorios, formato de correo y DNI)
- Diseño responsivo (Bootstrap/CSS, móvil y escritorio)
- Conectar con la API mediante services/
- Preparar la presentación (diapositivas)
-🤝 Tareas compartidas
- Integración front + back + BD y pruebas finales
- Revisión de pull requests entre los tres
- Ensayo y exposición con demostración del sistema (todos exponen una parte)
+---
 
-Si son 4 personas: el Integrante 4 se encarga de las páginas de Autores, Categorías y Préstamos en el front, y de la presentación.
+### 3. Instalar dependencias del backend
 
-7. Flujo de trabajo con Git
-Rama principal: main (solo código estable).
-Cada quien trabaja en su rama: feature/bd, feature/backend, feature/frontend.
-Commits claros, por ejemplo: feat: agrega CRUD de libros.
-Al terminar una tarea, abrir un Pull Request hacia main y que otro integrante lo revise.
-Hacer git pull antes de empezar a trabajar cada día.
-8. Cronograma sugerido
-Etapa	Qué se hace	Responsables
-1	Reparto de tareas, repositorio, DER y script SQL	Todos / Int. 1
-2	API REST y CRUD; maquetado de componentes	Int. 2 / Int. 3
-3	Validaciones, manejo de errores, formularios	Int. 2 / Int. 3
-4	Integración, pruebas y evidencias CRUD	Todos
-5	Documento final, diapositivas y ensayo	Todos
-9. Instalación y ejecución
-bash
-# 1. Clonar el repositorio
-git clone https://github.com/USUARIO/sistema-biblioteca.git
-cd sistema-biblioteca
-
-# 2. Base de datos
-mysql -u root -p < database/biblioteca.sql
-
-# 3. Backend
+```bash
 cd backend
-cp .env.example .env      # completar usuario y contraseña de MySQL
 npm install
-npm run dev               # http://localhost:3000
+```
 
-# 4. Frontend (otra terminal)
+### 4. Iniciar el backend
+
+```bash
+# Modo desarrollo (reinicio automático):
+npm run dev
+
+# Modo producción:
+npm start
+```
+
+El servidor estará disponible en: `http://localhost:3001`
+
+---
+
+### 5. Instalar dependencias del frontend
+
+```bash
 cd frontend
 npm install
-npm start                 # http://localhost:3001
+```
 
-Variables de entorno (backend/.env):
+### 6. Iniciar el frontend
 
-PORT=3000
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=tu_clave
-DB_NAME=biblioteca
-10. ✅ Checklist de entregables
- 1. Documento con la problemática y el proyecto
- 2. Diagrama Entidad-Relación
- 3. Script de creación de la base de datos
- 4. Código fuente del Front end
- 5. Código fuente del Back end
- 6. Evidencias de las operaciones CRUD
- 7. Repositorio en GitHub
- 8. Exposición y demostración del sistema
-11. Integrantes
-Nombre	Rol
-Nombre 1	Base de datos y documentación
-Nombre 2	Back end
-Nombre 3	Front end
+```bash
+npm run dev
+```
+
+El frontend estará disponible en: `http://localhost:5173`
+
+---
+
+## 🔑 Credenciales por defecto
+
+| Campo    | Valor     |
+|----------|-----------|
+| Usuario  | `admin`   |
+| Contraseña | `admin123` |
+
+> ⚠️ Cambia la contraseña después de la primera entrada.
+
+---
+
+## 📋 Funcionalidades del sistema
+
+### 📖 Libros
+- Registrar libros con autores, editorial, categorías y ejemplares
+- Búsqueda por título, autor o ISBN
+- Editar datos del libro
+- Dar de baja libros (baja lógica)
+
+### 👥 Lectores
+- Registrar lectores con tipo (Estudiante / Docente / Usuario externo)
+- Cada tipo tiene política de préstamo distinta (max. libros, días, multa/día)
+- Búsqueda por nombre, DNI o código
+- Editar y dar de baja lectores
+
+### 🔄 Préstamos
+- Registrar préstamos (selección de lector + ejemplares disponibles)
+- Validación automática de límites por tipo de lector
+- Registrar devoluciones (buen estado / dañado / perdido)
+- Renovación de préstamos (hasta el máximo permitido)
+- Historial de todos los préstamos
+
+### 💰 Multas
+- Generación automática al devolver con retraso
+- Filtrado por estado (Pendiente / Pagada)
+- Registrar pago de multas
+- Resumen de montos pendientes
+
+### 📈 Reportes / Dashboard
+- Contadores en tiempo real (libros, préstamos, multas, lectores)
+- Top 5 libros más prestados
+- Inventario de ejemplares por estado
+
+---
+
+## 🗄️ Base de datos — Tablas principales
+
+| Tabla | Descripción |
+|-------|-------------|
+| `persona` | Datos personales de cualquier individuo |
+| `lector` | Lectores registrados en la biblioteca |
+| `tipo_lector` | Tipos: Estudiante, Docente, Usuario externo |
+| `politica_prestamo` | Límites y multas por tipo de lector |
+| `libro` | Catálogo de libros |
+| `autor` | Autores (relación N:M con libro) |
+| `editorial` | Editoriales |
+| `categoria` | Categorías (relación N:M con libro) |
+| `ejemplar` | Copias físicas de cada libro |
+| `prestamo` | Cabecera del préstamo |
+| `detalle_prestamo` | Línea por cada ejemplar prestado |
+| `devolucion` | Registro de devoluciones |
+| `renovacion` | Historial de renovaciones |
+| `multa` | Multas generadas por retraso |
+| `reserva` | Reservas de libros |
+| `historial_actividad` | Auditoría de acciones |
+| `configuracion` | Parámetros del sistema |
+
+---
+
+## 🌐 Endpoints principales de la API
+
+```
+POST   /api/auth/login
+GET    /api/libros
+POST   /api/libros
+PUT    /api/libros/:id
+DELETE /api/libros/:id
+GET    /api/lectores
+POST   /api/lectores
+PUT    /api/lectores/:id
+DELETE /api/lectores/:id
+GET    /api/prestamos
+POST   /api/prestamos
+POST   /api/prestamos/devolver/:id
+POST   /api/prestamos/renovar/:id
+GET    /api/multas
+PATCH  /api/multas/:id/pagar
+GET    /api/reportes/dashboard
+GET    /api/catalogo/tipos-lector
+GET    /api/catalogo/ejemplares-disponibles
+```
+
+---
+
+## 👨‍💻 Tecnologías utilizadas
+
+**Frontend**
+- React 18 + React Router 6
+- Vite (bundler)
+- Axios (cliente HTTP)
+- CSS personalizado responsivo
+
+**Backend**
+- Node.js + Express 4
+- mysql2 (driver MySQL)
+- jsonwebtoken (autenticación JWT)
+- bcryptjs (hash de contraseñas)
+- dotenv, cors
+
+**Base de datos**
+- MySQL 8.0
+- 23 tablas relacionadas con claves primarias y foráneas
+- Datos seed incluidos
+
+---
+
+## 📌 Reglas de negocio implementadas
+
+| RN | Descripción |
+|----|-------------|
+| RN01 | Solo lectores activos pueden recibir préstamos |
+| RN02 | La inscripción del lector no debe estar vencida |
+| RN03 | Solo se prestan ejemplares en estado DISPONIBLE |
+| RN04 | No se permiten préstamos duplicados del mismo ejemplar |
+| RN06 | Límite de libros simultáneos por tipo de lector |
+| RN07 | Días de préstamo definidos por tipo de lector |
+| RN08 | Registro obligatorio de devolución |
+| RN09 | Actualización del estado del ejemplar al devolver |
+| RN11 | Límite de renovaciones por política del tipo de lector |
+| RN14 | Generación automática de multa si hay retraso |
