@@ -1,0 +1,25 @@
+# Dependencias
+node_modules/
+*/node_modules/
+
+# Base de datos SQLite (se genera automáticamente al iniciar)
+backend/database/biblioteca.db
+
+# Variables de entorno (no subir secretos)
+.env
+backend/.env
+
+# Build del frontend
+frontend/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
