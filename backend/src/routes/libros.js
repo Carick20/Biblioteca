@@ -188,16 +188,17 @@ router.post('/', upload.single('portada'), async (req, res, next) => {
   }
 });
 
-/* PUT /api/libros/:id  (multipart/form-data para portada opcional) */
+/* PUT /api/libros/:id  (multipart/form-data para portada opcional y añadir ejemplares) */
 router.put('/:id', upload.single('portada'), async (req, res, next) => {
+  const conn = await pool.getConnection();
   try {
-    const { titulo, isbn, anio_publicacion, idioma, descripcion, numero_paginas, estado } = req.body;
+    await conn.beginTransaction();
+    const { titulo, isbn, anio_publicacion, idioma, descripcion, numero_paginas, estado, n_nuevos_ejemplares } = req.body;
 
     // Si se sube nueva imagen, borrar la antigua
     let portada_url;
     if (req.file) {
-      // Obtener portada anterior para borrarla
-      const [rows] = await pool.query('SELECT portada_url FROM libro WHERE id_libro = ?', [req.params.id]);
+      const [rows] = await conn.query('SELECT portada_url FROM libro WHERE id_libro = ?', [req.params.id]);
       if (rows.length && rows[0].portada_url && rows[0].portada_url.startsWith('/uploads/')) {
         const oldPath = path.join(__dirname, '..', '..', rows[0].portada_url);
         fs.unlink(oldPath, () => {});
@@ -207,7 +208,7 @@ router.put('/:id', upload.single('portada'), async (req, res, next) => {
       portada_url = req.body.portada_url.trim() || null;
     }
 
-    const [r] = await pool.query(
+    await conn.query(
       `UPDATE libro SET
          titulo           = COALESCE(?, titulo),
          isbn             = ?,
@@ -224,9 +225,30 @@ router.put('/:id', upload.single('portada'), async (req, res, next) => {
         : [titulo || null, isbn || null, anio_publicacion || null, idioma || null,
            descripcion || null, numero_paginas || null, estado || null, req.params.id]
     );
-    if (!r.affectedRows) return res.status(404).json({ message: 'Libro no encontrado.' });
-    res.json({ message: 'Libro actualizado.', portada_url });
-  } catch (err) { next(err); }
+
+    // Añadir ejemplares adicionales si se indicó
+    if (n_nuevos_ejemplares && parseInt(n_nuevos_ejemplares, 10) > 0) {
+      const nAdicionales = parseInt(n_nuevos_ejemplares, 10);
+      const [[{ total_actual }]] = await conn.query(
+        'SELECT COUNT(*) AS total_actual FROM ejemplar WHERE id_libro = ?', [req.params.id]
+      );
+      const hoy = new Date().toISOString().slice(0, 10);
+      for (let k = 1; k <= nAdicionales; k++) {
+        const idx = total_actual + k;
+        await conn.query(
+          'INSERT INTO ejemplar(id_libro, codigo_barras, fecha_adquisicion) VALUES(?,?,?)',
+          [req.params.id, `L${String(req.params.id).padStart(5,'0')}-${String(idx).padStart(2,'0')}`, hoy]
+        );
+      }
+    }
+
+    await conn.commit(); conn.release();
+    res.json({ message: 'Libro actualizado correctamente.', portada_url });
+  } catch (err) {
+    await conn.rollback(); conn.release();
+    if (req.file) fs.unlink(req.file.path, () => {});
+    next(err);
+  }
 });
 
 /* DELETE /api/libros/:id  (baja lógica) */

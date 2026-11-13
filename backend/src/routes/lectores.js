@@ -13,13 +13,138 @@ router.get('/', async (req, res, next) => {
               p.tipo_documento, p.numero_documento,
               p.nombres, p.apellidos, p.correo, p.telefono,
               CONCAT(p.nombres, ' ', p.apellidos) AS nombre_completo,
-              t.nombre AS tipo_lector
+              t.nombre AS tipo_lector,
+              (SELECT COUNT(*) FROM multa m WHERE m.id_lector = lc.id_lector AND m.estado = 'PENDIENTE') AS multas_pendientes,
+              (SELECT COUNT(*) FROM detalle_prestamo d JOIN prestamo p2 ON p2.id_prestamo = d.id_prestamo WHERE p2.id_lector = lc.id_lector AND d.estado = 'ACTIVO' AND d.fecha_devolucion_programada < CURDATE()) AS prestamos_vencidos
        FROM lector lc
        JOIN persona    p ON p.id_persona     = lc.id_persona
        JOIN tipo_lector t ON t.id_tipo_lector = lc.id_tipo_lector
        ORDER BY p.apellidos, p.nombres`
     );
-    res.json(rows);
+    const enriched = rows.map(r => {
+      const apto = r.estado === 'ACTIVO' && r.multas_pendientes === 0 && r.prestamos_vencidos === 0;
+      return {
+        ...r,
+        es_apto: apto,
+        motivo_no_apto: r.estado !== 'ACTIVO' ? 'Inactivo' : r.multas_pendientes > 0 ? 'Multas pendientes' : r.prestamos_vencidos > 0 ? 'Préstamos vencidos' : null
+      };
+    });
+    res.json(enriched);
+  } catch (err) { next(err); }
+});
+
+/* GET /api/lectores/:id/actividad */
+router.get('/:id/actividad', async (req, res, next) => {
+  try {
+    const id_lector = req.params.id;
+
+    const [[lector]] = await pool.query(
+      `SELECT lc.*, CONCAT(p.nombres, ' ', p.apellidos) AS nombre_completo,
+              p.tipo_documento, p.numero_documento, p.correo, p.telefono, p.direccion, t.nombre AS tipo_lector
+       FROM lector lc
+       JOIN persona p ON p.id_persona = lc.id_persona
+       JOIN tipo_lector t ON t.id_tipo_lector = lc.id_tipo_lector
+       WHERE lc.id_lector = ?`,
+      [id_lector]
+    );
+    if (!lector) return res.status(404).json({ message: 'Lector no encontrado.' });
+
+    const [multasPendientes] = await pool.query(
+      `SELECT * FROM multa WHERE id_lector = ? AND estado = 'PENDIENTE'`,
+      [id_lector]
+    );
+
+    const [prestamosVencidos] = await pool.query(
+      `SELECT d.*, l.titulo, DATEDIFF(CURDATE(), d.fecha_devolucion_programada) AS dias_vencido
+       FROM detalle_prestamo d
+       JOIN prestamo p ON p.id_prestamo = d.id_prestamo
+       JOIN ejemplar e ON e.id_ejemplar = d.id_ejemplar
+       JOIN libro l ON l.id_libro = e.id_libro
+       WHERE p.id_lector = ? AND d.estado = 'ACTIVO' AND d.fecha_devolucion_programada < CURDATE()`,
+      [id_lector]
+    );
+
+    const [[politica]] = await pool.query(
+      `SELECT multa_por_dia FROM politica_prestamo WHERE id_tipo_lector = ?`,
+      [lector.id_tipo_lector]
+    );
+    const tarifaDiaria = politica ? parseFloat(politica.multa_por_dia) : 1.00;
+
+    let montoMultasPendientes = multasPendientes.reduce((acc, m) => acc + parseFloat(m.monto), 0);
+    let moraEstimadaVencidos = prestamosVencidos.reduce((acc, pv) => acc + (pv.dias_vencido * tarifaDiaria), 0);
+    let deudaTotal = montoMultasPendientes + moraEstimadaVencidos;
+
+    let esApto = multasPendientes.length === 0 && prestamosVencidos.length === 0 && lector.estado === 'ACTIVO';
+    let motivoBloqueo = '';
+    if (!esApto) {
+      const razones = [];
+      if (lector.estado !== 'ACTIVO') razones.push(`Lector en estado ${lector.estado}`);
+      if (multasPendientes.length > 0) razones.push(`${multasPendientes.length} multa(s) pendiente(s)`);
+      if (prestamosVencidos.length > 0) razones.push(`${prestamosVencidos.length} préstamo(s) vencido(s)`);
+      motivoBloqueo = razones.join(', ');
+    }
+
+    const [[{ total_historicos }]] = await pool.query(
+      `SELECT COUNT(DISTINCT p.id_prestamo) AS total_historicos FROM prestamo p WHERE p.id_lector = ?`,
+      [id_lector]
+    );
+    const [[{ activos_actuales }]] = await pool.query(
+      `SELECT COUNT(*) AS activos_actuales FROM detalle_prestamo d JOIN prestamo p ON p.id_prestamo = d.id_prestamo WHERE p.id_lector = ? AND d.estado = 'ACTIVO'`,
+      [id_lector]
+    );
+    const [[resDev]] = await pool.query(
+      `SELECT 
+         SUM(CASE WHEN dv.fecha_devolucion <= d.fecha_devolucion_programada THEN 1 ELSE 0 END) AS devueltos_a_tiempo,
+         SUM(CASE WHEN dv.fecha_devolucion > d.fecha_devolucion_programada THEN 1 ELSE 0 END) AS devueltos_con_atraso
+       FROM detalle_prestamo d
+       JOIN prestamo p ON p.id_prestamo = d.id_prestamo
+       JOIN devolucion dv ON dv.id_detalle_prestamo = d.id_detalle
+       WHERE p.id_lector = ?`,
+      [id_lector]
+    );
+
+    const [actividadPrestamos] = await pool.query(
+      `SELECT 'PRESTAMO' AS tipo, p.fecha_prestamo AS fecha, CONCAT('Préstamo del libro: ', l.titulo, ' (', e.codigo_barras, ')') AS descripcion, NULL AS monto
+       FROM detalle_prestamo d
+       JOIN prestamo p ON p.id_prestamo = d.id_prestamo
+       JOIN ejemplar e ON e.id_ejemplar = d.id_ejemplar
+       JOIN libro l ON l.id_libro = e.id_libro
+       WHERE p.id_lector = ?`,
+      [id_lector]
+    );
+
+    const [actividadDevoluciones] = await pool.query(
+      `SELECT 'DEVOLUCION' AS tipo, dv.fecha_devolucion AS fecha, CONCAT('Devolución de ejemplar (Estado: ', dv.estado_ejemplar, ')') AS descripcion, NULL AS monto
+       FROM devolucion dv
+       JOIN detalle_prestamo d ON d.id_detalle = dv.id_detalle_prestamo
+       JOIN prestamo p ON p.id_prestamo = d.id_prestamo
+       WHERE p.id_lector = ?`,
+      [id_lector]
+    );
+
+    const [actividadMultas] = await pool.query(
+      `SELECT CASE WHEN estado = 'PAGADA' THEN 'MULTA_PAGADA' ELSE 'MULTA_PENDIENTE' END AS tipo, fecha_generacion AS fecha, CONCAT('Multa: ', concepto) AS descripcion, monto
+       FROM multa
+       WHERE id_lector = ?`,
+      [id_lector]
+    );
+
+    const historialCronologico = [...actividadPrestamos, ...actividadDevoluciones, ...actividadMultas]
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    res.json({
+      lector,
+      estado_solvencia: esApto ? 'Apto' : 'No apto / Bloqueado',
+      motivo_bloqueo: motivoBloqueo || 'Ninguno',
+      metricas: {
+        total_historicos: total_historicos || 0,
+        activos_actuales: activos_actuales || 0,
+        devueltos_a_tiempo: resDev?.devueltos_a_tiempo || 0,
+        devueltos_con_atraso: resDev?.devueltos_con_atraso || 0,
+        deuda_total: deudaTotal.toFixed(2)
+      },
+      historial: historialCronologico
+    });
   } catch (err) { next(err); }
 });
 

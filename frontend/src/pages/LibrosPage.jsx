@@ -4,7 +4,7 @@ import Modal from '../components/Modal';
 
 const initForm = {
   titulo: '', isbn: '', editorial: '', autores: '', categorias: '',
-  anio_publicacion: '', idioma: 'Español', descripcion: '', numero_paginas: '', n_ejemplares: 1,
+  anio_publicacion: '', idioma: 'Español', descripcion: '', numero_paginas: '', n_ejemplares: 1, n_nuevos_ejemplares: 0,
 };
 
 export default function LibrosPage() {
@@ -60,10 +60,9 @@ export default function LibrosPage() {
       editorial: libro.editorial_nombre || '', autores: libro.autores || '',
       categorias: libro.categorias || '', anio_publicacion: libro.anio_publicacion || '',
       idioma: libro.idioma || 'Español', descripcion: libro.descripcion || '',
-      numero_paginas: libro.numero_paginas || '', n_ejemplares: 1,
+      numero_paginas: libro.numero_paginas || '', n_ejemplares: 1, n_nuevos_ejemplares: 0,
     });
     resetPortada();
-    // Mostrar portada existente como preview si la tiene
     if (libro.portada_url) {
       setPortadaPreview(libro.portada_url);
     }
@@ -88,7 +87,6 @@ export default function LibrosPage() {
     if (!form.titulo.trim()) { setMsg({ text: 'El título es obligatorio.', type: 'error' }); return; }
     setSaving(true);
     try {
-      // Construir FormData para soportar archivo
       const fd = new FormData();
       fd.append('titulo',           form.titulo.trim());
       fd.append('isbn',             form.isbn || '');
@@ -100,6 +98,7 @@ export default function LibrosPage() {
       fd.append('descripcion',      form.descripcion || '');
       fd.append('numero_paginas',   form.numero_paginas || '');
       fd.append('n_ejemplares',     String(parseInt(form.n_ejemplares, 10) || 1));
+      fd.append('n_nuevos_ejemplares', String(parseInt(form.n_nuevos_ejemplares, 10) || 0));
       if (portadaFile) {
         fd.append('portada', portadaFile);
       }
@@ -108,12 +107,12 @@ export default function LibrosPage() {
         await api.put(`/libros/${editing.id_libro}`, fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
-        setMsg({ text: 'Libro actualizado.', type: 'success' });
+        setMsg({ text: 'Libro actualizado correctamente.', type: 'success' });
       } else {
         await api.post('/libros', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
-        setMsg({ text: 'Libro registrado.', type: 'success' });
+        setMsg({ text: 'Libro registrado correctamente.', type: 'success' });
       }
       await fetchLibros(query);
       setTimeout(() => setModal(false), 900);
@@ -242,10 +241,15 @@ export default function LibrosPage() {
               <label>Nº páginas</label>
               <input name="numero_paginas" type="number" min="1" className="form-control" value={form.numero_paginas} onChange={handleChange} />
             </div>
-            {!editing && (
+            {!editing ? (
               <div className="form-group">
-                <label>Ejemplares</label>
+                <label>Ejemplares iniciales</label>
                 <input name="n_ejemplares" type="number" min="1" max="20" className="form-control" value={form.n_ejemplares} onChange={handleChange} />
+              </div>
+            ) : (
+              <div className="form-group">
+                <label>Añadir más copias (+)</label>
+                <input name="n_nuevos_ejemplares" type="number" min="0" max="20" className="form-control" value={form.n_nuevos_ejemplares} onChange={handleChange} />
               </div>
             )}
           </div>

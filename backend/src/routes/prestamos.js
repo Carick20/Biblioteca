@@ -80,6 +80,22 @@ router.post('/', async (req, res, next) => {
     if (lc.fecha_vencimiento && lc.fecha_vencimiento < hoy)
       throw Object.assign(new Error('La inscripción del lector está vencida.'), { status: 400 });
 
+    // Validar multas pendientes
+    const [[{ multas_pendientes }]] = await conn.query(
+      `SELECT COUNT(*) AS multas_pendientes FROM multa WHERE id_lector = ? AND estado = 'PENDIENTE'`,
+      [id_lector]
+    );
+    if (multas_pendientes > 0)
+      throw Object.assign(new Error('El lector tiene multas pendientes de pago y no está apto para nuevos préstamos.'), { status: 400 });
+
+    // Validar préstamos activos vencidos
+    const [[{ prestamos_vencidos }]] = await conn.query(
+      `SELECT COUNT(*) AS prestamos_vencidos FROM detalle_prestamo d JOIN prestamo p ON p.id_prestamo = d.id_prestamo WHERE p.id_lector = ? AND d.estado = 'ACTIVO' AND d.fecha_devolucion_programada < CURDATE()`,
+      [id_lector]
+    );
+    if (prestamos_vencidos > 0)
+      throw Object.assign(new Error('El lector tiene préstamos activos vencidos sin devolver y no está apto.'), { status: 400 });
+
     // Libros activos del lector
     const [[{ en_uso }]] = await conn.query(
       `SELECT COUNT(*) AS en_uso FROM detalle_prestamo d
@@ -133,6 +149,61 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+/* POST /api/prestamos/registrar-atraso/:id_detalle — Registra un atraso retrocediendo la fecha de devolución programada N días y generando multa */
+router.post('/registrar-atraso/:id_detalle', async (req, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const id_detalle = parseInt(req.params.id_detalle, 10);
+    const { dias = 5 } = req.body;
+
+    const [[det]] = await conn.query(
+      `SELECT d.*, p.id_lector, p.id_prestamo, pol.multa_por_dia
+       FROM detalle_prestamo d
+       JOIN prestamo p ON p.id_prestamo = d.id_prestamo
+       JOIN lector lc ON lc.id_lector = p.id_lector
+       JOIN politica_prestamo pol ON pol.id_tipo_lector = lc.id_tipo_lector
+       WHERE d.id_detalle = ?`,
+      [id_detalle]
+    );
+    if (!det) { await conn.rollback(); conn.release(); return res.status(404).json({ message: 'Detalle no encontrado.' }); }
+    if (det.estado !== 'ACTIVO') { await conn.rollback(); conn.release(); return res.status(400).json({ message: 'El préstamo no está activo.' }); }
+
+    const diasInt = parseInt(dias, 10) || 5;
+
+    // Retroceder fecha programada N días
+    await conn.query(
+      'UPDATE detalle_prestamo SET fecha_devolucion_programada = DATE_SUB(CURDATE(), INTERVAL ? DAY) WHERE id_detalle = ?',
+      [diasInt, id_detalle]
+    );
+
+    // Generar o actualizar multa pendiente
+    const monto = diasInt * parseFloat(det.multa_por_dia);
+    const [[existente]] = await conn.query(
+      'SELECT id_multa FROM multa WHERE id_lector = ? AND id_prestamo = ? AND estado = \'PENDIENTE\'',
+      [det.id_lector, det.id_prestamo]
+    );
+
+    if (!existente) {
+      await conn.query(
+        'INSERT INTO multa(id_lector, id_prestamo, concepto, monto, estado) VALUES(?,?,?,?, \'PENDIENTE\')',
+        [det.id_lector, det.id_prestamo, `Retraso de ${diasInt} día(s)`, monto]
+      );
+    } else {
+      await conn.query(
+        'UPDATE multa SET monto = ?, concepto = ? WHERE id_multa = ?',
+        [monto, `Retraso de ${diasInt} día(s)`, existente.id_multa]
+      );
+    }
+
+    await conn.commit(); conn.release();
+    res.json({ message: `Se registró un atraso de ${diasInt} día(s) y se generó multa de S/ ${monto.toFixed(2)}.` });
+  } catch (err) {
+    await conn.rollback(); conn.release();
+    next(err);
+  }
+});
+
 /* POST /api/prestamos/devolver/:id_detalle */
 router.post('/devolver/:id_detalle', async (req, res, next) => {
   const conn = await pool.getConnection();
@@ -142,11 +213,14 @@ router.post('/devolver/:id_detalle', async (req, res, next) => {
     const id_detalle = parseInt(req.params.id_detalle, 10);
 
     const [[det]] = await conn.query(
-      `SELECT d.*, p.id_lector, pol.multa_por_dia
+      `SELECT d.*, p.id_lector, pol.multa_por_dia,
+              e.costo_adquisicion, l.titulo
        FROM detalle_prestamo d
        JOIN prestamo p          ON p.id_prestamo      = d.id_prestamo
        JOIN lector lc           ON lc.id_lector        = p.id_lector
        JOIN politica_prestamo pol ON pol.id_tipo_lector = lc.id_tipo_lector
+       JOIN ejemplar e          ON e.id_ejemplar       = d.id_ejemplar
+       JOIN libro l             ON l.id_libro          = e.id_libro
        WHERE d.id_detalle = ?`,
       [id_detalle]
     );
@@ -171,18 +245,33 @@ router.post('/devolver/:id_detalle', async (req, res, next) => {
     await conn.query('UPDATE detalle_prestamo SET estado=? WHERE id_detalle=?',   [estadoDetalle, id_detalle]);
     await conn.query('UPDATE ejemplar SET estado=? WHERE id_ejemplar=?',          [estado_ejemplar, det.id_ejemplar]);
 
-    // Multa por retraso (cálculo en JS para evitar funciones de fecha SQL)
+    // Cálculo de multas (retraso + reposición si es dañado o perdido)
     const diasTarde = Math.floor(
       (Date.now() - new Date(det.fecha_devolucion_programada).getTime()) / 86400000
     );
-    let multaMsg = '';
+    let montoTotalMulta = 0;
+    let conceptos = [];
+
     if (diasTarde > 0) {
-      const monto = diasTarde * parseFloat(det.multa_por_dia);
+      const montoRetraso = diasTarde * parseFloat(det.multa_por_dia);
+      montoTotalMulta += montoRetraso;
+      conceptos.push(`Retraso de ${diasTarde} día(s)`);
+    }
+
+    if (estado_ejemplar === 'DAÑADO' || estado_ejemplar === 'PERDIDO') {
+      const costoReposicion = parseFloat(det.costo_adquisicion) > 0 ? parseFloat(det.costo_adquisicion) : 50.00;
+      montoTotalMulta += costoReposicion;
+      conceptos.push(`Reposición por libro ${estado_ejemplar.toLowerCase()} (${det.titulo}) - S/ ${costoReposicion.toFixed(2)}`);
+    }
+
+    let multaMsg = '';
+    if (montoTotalMulta > 0) {
+      const conceptoFinal = conceptos.join(' + ');
       await conn.query(
         'INSERT INTO multa(id_lector, id_prestamo, concepto, monto) VALUES(?,?,?,?)',
-        [det.id_lector, det.id_prestamo, `Retraso de ${diasTarde} día(s)`, monto]
+        [det.id_lector, det.id_prestamo, conceptoFinal, montoTotalMulta]
       );
-      multaMsg = ` Se generó multa de S/ ${monto.toFixed(2)}.`;
+      multaMsg = ` Se generó multa de S/ ${montoTotalMulta.toFixed(2)} (${conceptos.join(', ')}).`;
     }
 
     // Cerrar préstamo si no quedan detalles activos

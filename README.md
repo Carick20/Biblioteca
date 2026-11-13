@@ -1,52 +1,73 @@
 # 📚 Sistema de Gestión Bibliotecaria
 
-Aplicación web completa para gestión de una biblioteca.  
-**Stack:** React + Node.js / Express + MySQL
+Aplicación web completa y robusta para la gestión integral de bibliotecas, con panel administrativo y portal público/lectores.  
+**Stack:** React + Node.js / Express + MySQL + Multer (subida de portadas)
 
 ---
 
 ## 🗂 Estructura del proyecto
 
 ```
-biblioteca-app/
+Biblioteca/
 ├── backend/
 │   ├── database/
 │   │   └── schema.sql          ← Script MySQL (23 tablas + datos seed)
 │   ├── src/
-│   │   ├── config/database.js  ← Conexión MySQL (pool)
+│   │   ├── config/
+│   │   │   ├── database.js     ← Conexión MySQL (pool)
+│   │   │   └── db.js
+│   │   ├── controllers/
+│   │   │   ├── crud.factory.js ← Fábrica de controladores CRUD genéricos
+│   │   │   ├── libros.controller.js
+│   │   │   └── prestamos.controller.js
 │   │   ├── middleware/
-│   │   │   ├── auth.js         ← Verificación JWT
-│   │   │   └── errorHandler.js ← Manejo global de errores
+│   │   │   └── auth.js         ← Verificación JWT
+│   │   ├── middlewares/
+│   │   │   ├── errorHandler.js ← Manejo global de errores
+│   │   │   └── validaciones.js ← Validaciones de entrada
 │   │   ├── routes/
-│   │   │   ├── auth.js         ← POST /api/auth/login
-│   │   │   ├── libros.js       ← CRUD libros
-│   │   │   ├── lectores.js     ← CRUD lectores
-│   │   │   ├── prestamos.js    ← Préstamos, devoluciones, renovaciones
-│   │   │   ├── multas.js       ← Listado y pago de multas
-│   │   │   ├── reportes.js     ← Dashboard y estadísticas
-│   │   │   └── catalogo.js     ← Autores, editoriales, categorías
+│   │   │   ├── auth.js         ← Autenticación de administradores
+│   │   │   ├── autores.routes.js
+│   │   │   ├── catalogo.js     ← Catálogo general, géneros, editoriales
+│   │   │   ├── categorias.routes.js
+│   │   │   ├── lectores.js     ← CRUD de lectores (Admin)
+│   │   │   ├── libros.js / libros.routes.js
+│   │   │   ├── miBiblioteca.js ← Portal del lector (préstamos y perfil personal)
+│   │   │   ├── multas.js       ← Gestión y pago de multas
+│   │   │   ├── prestamos.js / prestamos.routes.js
+│   │   │   ├── publico.js      ← Catálogo y búsqueda pública de libros
+│   │   │   ├── reportes.js     ← Dashboard, estadísticas y métricas
+│   │   │   └── socios.routes.js
 │   │   └── server.js           ← Punto de entrada Express
-│   ├── .env                    ← Variables de entorno
+│   ├── uploads/
+│   │   └── portadas/           ← Almacenamiento de imágenes de libros
+│   ├── .env.example
 │   └── package.json
 └── frontend/
     ├── src/
     │   ├── components/
-    │   │   ├── Navbar.jsx      ← Navegación responsiva
+    │   │   ├── Navbar.jsx      ← Barra de navegación adaptativa
     │   │   └── Modal.jsx       ← Modal genérico reutilizable
     │   ├── context/
-    │   │   └── AuthContext.jsx ← Estado global de autenticación
+    │   │   └── AuthContext.jsx ← Estado global de autenticación (Admin y Lector)
     │   ├── hooks/
     │   │   └── useApi.js       ← Hook para peticiones HTTP
     │   ├── pages/
-    │   │   ├── LoginPage.jsx
-    │   │   ├── DashboardPage.jsx
-    │   │   ├── LibrosPage.jsx
-    │   │   ├── LectoresPage.jsx
-    │   │   ├── PrestamosPage.jsx
-    │   │   ├── MultasPage.jsx
-    │   │   └── ReportesPage.jsx
-    │   ├── services/api.js     ← Cliente axios con interceptores JWT
-    │   ├── App.jsx             ← Rutas y protección de sesión
+    │   │   ├── CatalogoPublico.jsx  ← Catálogo abierto al público
+    │   │   ├── DashboardPage.jsx    ← Métricas y estadísticas generales
+    │   │   ├── DetalleLibro.jsx     ← Ficha detallada de un libro
+    │   │   ├── InicioPublico.jsx    ← Página de bienvenida pública
+    │   │   ├── LectorLoginPage.jsx  ← Inicio de sesión para lectores
+    │   │   ├── LectoresPage.jsx     ← Gestión de lectores (Admin)
+    │   │   ├── LibrosPage.jsx       ← Gestión de libros y ejemplares (Admin)
+    │   │   ├── LoginPage.jsx        ← Inicio de sesión de administradores
+    │   │   ├── MiBibliotecaPage.jsx ← Panel personal del lector
+    │   │   ├── MultasPage.jsx       ← Control de multas y pagos (Admin)
+    │   │   ├── PrestamosPage.jsx    ← Gestión de préstamos y devoluciones
+    │   │   └── ReportesPage.jsx     ← Reportes avanzados
+    │   ├── services/
+    │   │   └── api.js          ← Cliente Axios con interceptores JWT
+    │   ├── App.jsx             ← Rutas principales y protección de sesiones
     │   ├── main.jsx
     │   └── index.css           ← Estilos globales responsivos
     ├── index.html
@@ -60,34 +81,28 @@ biblioteca-app/
 
 | Herramienta | Versión mínima |
 |-------------|---------------|
-| Node.js     | 18.x           |
-| npm         | 9.x            |
-| MySQL       | 8.0            |
+| Node.js     | 18.x o superior |
+| npm         | 9.x o superior |
+| MySQL       | 8.0 o superior |
 
 ---
 
 ## 🚀 Instalación paso a paso
 
-### 1. Crear la base de datos en MySQL
+### 1. Configurar la Base de Datos en MySQL
 
-Abre **MySQL Workbench** o la consola de MySQL y ejecuta:
+Ejecuta el script SQL incluido para crear la base de datos `biblioteca_db` junto con sus 23 tablas y datos iniciales de prueba:
 
-```sql
-SOURCE C:/ruta/a/biblioteca-app/backend/database/schema.sql;
-```
-
-O también:
 ```bash
 mysql -u root -p < backend/database/schema.sql
 ```
-
-Esto crea la base de datos `biblioteca_db` con todas las tablas y datos iniciales.
+O bien importando el archivo `backend/database/schema.sql` desde **MySQL Workbench**.
 
 ---
 
 ### 2. Configurar variables de entorno del backend
 
-Edita el archivo `backend/.env`:
+Copia el archivo de ejemplo o crea un archivo `.env` en la carpeta `backend/`:
 
 ```env
 PORT=3001
@@ -96,177 +111,145 @@ DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=tu_contraseña_mysql
 DB_NAME=biblioteca_db
-JWT_SECRET=cambia_este_secreto_en_produccion
+JWT_SECRET=tu_clave_secreta_jwt_muy_segura
 JWT_EXPIRES=24h
 ```
 
 ---
 
-### 3. Instalar dependencias del backend
+### 3. Instalar dependencias e iniciar el Backend
 
 ```bash
 cd backend
 npm install
-```
-
-### 4. Iniciar el backend
-
-```bash
-# Modo desarrollo (reinicio automático):
+# Modo desarrollo con recarga automática:
 npm run dev
-
-# Modo producción:
+# O en producción:
 npm start
 ```
-
-El servidor estará disponible en: `http://localhost:3001`
+El servidor backend correrá en `http://localhost:3001`.
 
 ---
 
-### 5. Instalar dependencias del frontend
+### 4. Instalar dependencias e iniciar el Frontend
+
+En otra terminal:
 
 ```bash
 cd frontend
 npm install
-```
-
-### 6. Iniciar el frontend
-
-```bash
 npm run dev
 ```
-
-El frontend estará disponible en: `http://localhost:5173`
+La aplicación web estará disponible en `http://localhost:5173`.
 
 ---
 
 ## 🔑 Credenciales por defecto
 
-| Campo    | Valor     |
-|----------|-----------|
-| Usuario  | `admin`   |
-| Contraseña | `admin123` |
-
-> ⚠️ Cambia la contraseña después de la primera entrada.
+### Panel Administrativo
+- **Usuario:** `admin`
+- **Contraseña:** `admin123`
 
 ---
 
-## 📋 Funcionalidades del sistema
+## 📋 Funcionalidades Principales
 
-### 📖 Libros
-- Registrar libros con autores, editorial, categorías y ejemplares
-- Búsqueda por título, autor o ISBN
-- Editar datos del libro
-- Dar de baja libros (baja lógica)
+### 🌐 Portal Público y de Lectores
+- **Inicio y Catálogo Público:** Permite a cualquier visitante buscar libros, filtrar por categoría/autor/editorial y ver detalles sin iniciar sesión.
+- **Portal del Lector (`Mi Biblioteca`):** Los lectores pueden iniciar sesión con sus credenciales de lector para consultar sus préstamos activos, historial, fechas de devolución y multas pendientes.
+- **Subida de Portadas:** Soporte para carga de imágenes de portada de libros mediante `multer` con almacenamiento local en `backend/uploads/portadas/`.
 
-### 👥 Lectores
-- Registrar lectores con tipo (Estudiante / Docente / Usuario externo)
-- Cada tipo tiene política de préstamo distinta (max. libros, días, multa/día)
-- Búsqueda por nombre, DNI o código
-- Editar y dar de baja lectores
+### 📖 Gestión de Libros y Catálogo (Admin)
+- Registro y edición de libros, autores, editoriales y categorías.
+- Administración de ejemplares físicos vinculados a cada libro.
+- Subida y actualización de imágenes de portada.
 
-### 🔄 Préstamos
-- Registrar préstamos (selección de lector + ejemplares disponibles)
-- Validación automática de límites por tipo de lector
-- Registrar devoluciones (buen estado / dañado / perdido)
-- Renovación de préstamos (hasta el máximo permitido)
-- Historial de todos los préstamos
+### 👥 Gestión de Lectores (Admin)
+- Registro de lectores vinculados a la tabla de personas.
+- Clasificación por tipo de lector (Estudiante, Docente, Usuario Externo) con políticas de préstamo diferenciadas (días permitidos, límite de libros, monto de multa diaria).
 
-### 💰 Multas
-- Generación automática al devolver con retraso
-- Filtrado por estado (Pendiente / Pagada)
-- Registrar pago de multas
-- Resumen de montos pendientes
+### 🔄 Préstamos y Devoluciones (Admin)
+- Asignación de préstamos validando políticas de lector y disponibilidad de ejemplares.
+- Registro de devoluciones (estado bueno, dañado, perdido).
+- Renovación de préstamos dentro del límite permitido.
 
-### 📈 Reportes / Dashboard
-- Contadores en tiempo real (libros, préstamos, multas, lectores)
-- Top 5 libros más prestados
-- Inventario de ejemplares por estado
+### 💰 Multas y Reportes (Admin)
+- Generación automática de multas por retraso en devoluciones.
+- Registro de pagos y control de estados (Pendiente / Pagada).
+- Dashboard con estadísticas y reportes en tiempo real.
 
 ---
 
-## 🗄️ Base de datos — Tablas principales
+## 🗄️ Base de datos — Tablas principales (`schema.sql`)
 
-| Tabla | Descripción |
-|-------|-------------|
-| `persona` | Datos personales de cualquier individuo |
-| `lector` | Lectores registrados en la biblioteca |
-| `tipo_lector` | Tipos: Estudiante, Docente, Usuario externo |
-| `politica_prestamo` | Límites y multas por tipo de lector |
-| `libro` | Catálogo de libros |
-| `autor` | Autores (relación N:M con libro) |
-| `editorial` | Editoriales |
-| `categoria` | Categorías (relación N:M con libro) |
-| `ejemplar` | Copias físicas de cada libro |
-| `prestamo` | Cabecera del préstamo |
-| `detalle_prestamo` | Línea por cada ejemplar prestado |
-| `devolucion` | Registro de devoluciones |
-| `renovacion` | Historial de renovaciones |
-| `multa` | Multas generadas por retraso |
-| `reserva` | Reservas de libros |
-| `historial_actividad` | Auditoría de acciones |
-| `configuracion` | Parámetros del sistema |
+El sistema cuenta con un esquema relacional optimizado de **23 tablas**, entre las cuales destacan:
+- `persona`, `lector`, `tipo_lector`, `politica_prestamo`
+- `libro`, `autor`, `editorial`, `categoria`, `libro_autor`, `libro_categoria`, `ejemplar`
+- `prestamo`, `detalle_prestamo`, `devolucion`, `renovacion`
+- `multa`, `reserva`, `historial_actividad`, `configuracion`
 
 ---
 
 ## 🌐 Endpoints principales de la API
 
 ```
-POST   /api/auth/login
-GET    /api/libros
-POST   /api/libros
-PUT    /api/libros/:id
-DELETE /api/libros/:id
-GET    /api/lectores
-POST   /api/lectores
-PUT    /api/lectores/:id
-DELETE /api/lectores/:id
-GET    /api/prestamos
-POST   /api/prestamos
-POST   /api/prestamos/devolver/:id
-POST   /api/prestamos/renovar/:id
-GET    /api/multas
-PATCH  /api/multas/:id/pagar
-GET    /api/reportes/dashboard
-GET    /api/catalogo/tipos-lector
-GET    /api/catalogo/ejemplares-disponibles
+# Autenticación y Público
+POST   /api/auth/login                  # Login administrador
+POST   /api/publico/login-lector        # Login de lectores
+GET    /api/publico/libros              # Catálogo público de libros
+GET    /api/publico/libros/:id          # Detalle de libro público
+
+# Mi Biblioteca (Lector autenticado)
+GET    /api/mi-biblioteca/prestamos     # Préstamos del lector actual
+GET    /api/mi-biblioteca/multas        # Multas del lector actual
+
+# Gestión Administrativa
+GET    /api/libros                      # Listar libros (con soporte de portadas)
+POST   /api/libros                      # Crear libro (multipart/form-data con portada)
+PUT    /api/libros/:id                  # Actualizar libro
+DELETE /api/libros/:id                  # Eliminar/Dar de baja libro
+
+GET    /api/lectores                    # Listar lectores
+POST   /api/lectores                    # Crear lector
+PUT    /api/lectores/:id                # Actualizar lector
+DELETE /api/lectores/:id                # Eliminar lector
+
+GET    /api/prestamos                   # Listar préstamos
+POST   /api/prestamos                   # Registrar nuevo préstamo
+POST   /api/prestamos/devolver/:id      # Registrar devolución
+POST   /api/prestamos/renovar/:id       # Renovar préstamo
+
+GET    /api/multas                      # Listar multas
+PATCH  /api/multas/:id/pagar            # Marcar multa como pagada
+
+GET    /api/reportes/dashboard          # Métricas y estadísticas generales
+GET    /api/catalogo/...                # Catálogos auxiliares (tipos, categorías, autores)
 ```
 
 ---
 
-## 👨‍💻 Tecnologías utilizadas
+## 👨‍💻 Tecnologías Utilizadas
 
-**Frontend**
-- React 18 + React Router 6
-- Vite (bundler)
-- Axios (cliente HTTP)
-- CSS personalizado responsivo
+**Frontend:**
+- React 18 & React Router 6
+- Vite
+- Axios (con interceptores para JWT)
+- CSS Modularizado y Responsivo
 
-**Backend**
-- Node.js + Express 4
-- mysql2 (driver MySQL)
-- jsonwebtoken (autenticación JWT)
-- bcryptjs (hash de contraseñas)
-- dotenv, cors
-
-**Base de datos**
-- MySQL 8.0
-- 23 tablas relacionadas con claves primarias y foráneas
-- Datos seed incluidos
+**Backend:**
+- Node.js & Express
+- MySQL2 (Pool de conexiones)
+- JSON Web Token (JWT) & bcryptjs
+- Multer (Gestión de subida de archivos/portadas)
+- Cors & Dotenv
 
 ---
 
-## 📌 Reglas de negocio implementadas
+## 📌 Reglas de Negocio Clave
 
-| RN | Descripción |
-|----|-------------|
-| RN01 | Solo lectores activos pueden recibir préstamos |
-| RN02 | La inscripción del lector no debe estar vencida |
-| RN03 | Solo se prestan ejemplares en estado DISPONIBLE |
-| RN04 | No se permiten préstamos duplicados del mismo ejemplar |
-| RN06 | Límite de libros simultáneos por tipo de lector |
-| RN07 | Días de préstamo definidos por tipo de lector |
-| RN08 | Registro obligatorio de devolución |
-| RN09 | Actualización del estado del ejemplar al devolver |
-| RN11 | Límite de renovaciones por política del tipo de lector |
-| RN14 | Generación automática de multa si hay retraso |
+- **RN01:** Solo lectores con estado activo pueden solicitar préstamos.
+- **RN02:** La inscripción de la membresía del lector no debe estar vencida.
+- **RN03:** Solo se pueden prestar ejemplares con estado `DISPONIBLE`.
+- **RN06 & RN07:** Los límites de libros simultáneos y días de préstamo se aplican estrictamente según el `tipo_lector` y su `politica_prestamo`.
+- **RN11:** Límite máximo de renovaciones permitidas.
+- **RN14:** Generación automática de multas por cada día de retraso en la devolución.

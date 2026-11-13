@@ -1,3 +1,4 @@
+
 -- ============================================================
 --  SISTEMA INTEGRAL DE GESTIÓN BIBLIOTECARIA
 --  Base de datos: biblioteca_db

@@ -8,6 +8,18 @@ export default function InicioPublico() {
   const [search,     setSearch]     = useState('');
   const navigate = useNavigate();
 
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dark_mode') === 'true');
+
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+      localStorage.setItem('dark_mode', 'true');
+    } else {
+      document.body.classList.remove('dark-mode');
+      localStorage.setItem('dark_mode', 'false');
+    }
+  }, [darkMode]);
+
   useEffect(() => {
     axios.get('/api/publico/stats').then(r => setStats(r.data)).catch(() => {});
     axios.get('/api/publico/destacados').then(r => setDestacados(r.data)).catch(() => {});
@@ -20,11 +32,29 @@ export default function InicioPublico() {
 
   return (
     <div className="pub-page">
+      {/* Navbar pública */}
+      <nav className="pub-nav">
+        <div className="pub-container pub-nav-inner">
+          <Link to="/" className="pub-nav-brand">Biblioteca</Link>
+          <div className="pub-nav-links">
+            <Link to="/"            className="pub-nav-link active">Inicio</Link>
+            <Link to="/catalogo"    className="pub-nav-link">Catálogo</Link>
+            <Link to="/lector-login" className="pub-nav-link pub-nav-login">Mi biblioteca</Link>
+            <button
+              className="btn-theme-toggle"
+              onClick={() => setDarkMode(d => !d)}
+              title="Cambiar tema"
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+          </div>
+        </div>
+      </nav>
 
       {/* ── HERO ─────────────────────────────────────────── */}
       <section className="pub-hero">
         <div className="pub-hero-content">
-          <div className="pub-hero-badge">📚 Biblioteca Municipal</div>
+          <div className="pub-hero-badge">Biblioteca Municipal</div>
           <h1 className="pub-hero-title">
             Tu puerta al<br/>
             <span className="pub-hero-accent">conocimiento</span>
@@ -36,7 +66,7 @@ export default function InicioPublico() {
 
           {/* Barra de búsqueda */}
           <form className="pub-search-bar" onSubmit={handleSearch}>
-            <span className="pub-search-icon">🔍</span>
+            <svg className="pub-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <input
               className="pub-search-input"
               placeholder="Busca por título, autor o ISBN…"
@@ -52,12 +82,19 @@ export default function InicioPublico() {
           </div>
         </div>
 
-        {/* Decoración derecha */}
+        {/* Imagen real en el hero con 3D tilt */}
         <div className="pub-hero-deco" aria-hidden="true">
-          <div className="pub-deco-stack">
-            {['📖','📗','📘','📙','📚'].map((e,i) => (
-              <span key={i} className="pub-deco-book" style={{ animationDelay: `${i * 0.3}s` }}>{e}</span>
-            ))}
+          <div style={{
+            width: '320px', height: '320px', borderRadius: '32px', overflow: 'hidden',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.4)', border: '2px solid rgba(255,255,255,0.2)',
+            transform: 'perspective(1000px) rotateY(-10deg) rotateX(10deg)',
+            transition: 'transform 0.4s ease'
+          }}>
+            <img
+              src="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?q=80&w=600&auto=format&fit=crop"
+              alt="Biblioteca y libros"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
           </div>
         </div>
       </section>
@@ -67,13 +104,12 @@ export default function InicioPublico() {
         <section className="pub-stats">
           <div className="pub-container">
             {[
-              { val: stats.total_libros,   lbl: 'Títulos disponibles', ico: '📖' },
-              { val: stats.total_autores,  lbl: 'Autores registrados', ico: '✍️'  },
-              { val: stats.disponibles,    lbl: 'Ejemplares libres',   ico: '✅'  },
-              { val: stats.total_lectores, lbl: 'Lectores activos',    ico: '👥'  },
+              { val: stats.total_libros,   lbl: 'Títulos disponibles', delay: '0.05s' },
+              { val: stats.total_autores,  lbl: 'Autores registrados', delay: '0.1s' },
+              { val: stats.disponibles,    lbl: 'Ejemplares libres',   delay: '0.15s' },
+              { val: stats.total_lectores, lbl: 'Lectores activos',    delay: '0.2s' },
             ].map(s => (
-              <div key={s.lbl} className="pub-stat-card">
-                <span className="pub-stat-icon">{s.ico}</span>
+              <div key={s.lbl} className="pub-stat-card" style={{ animationDelay: s.delay }}>
                 <strong className="pub-stat-val">{s.val}</strong>
                 <span className="pub-stat-lbl">{s.lbl}</span>
               </div>
@@ -85,23 +121,24 @@ export default function InicioPublico() {
       {/* ── LIBROS DESTACADOS ────────────────────────────── */}
       <section className="pub-section pub-container">
         <div className="pub-section-header">
-          <h2 className="pub-section-title">⭐ Libros destacados</h2>
+          <h2 className="pub-section-title">Libros destacados</h2>
           <Link to="/catalogo" className="pub-link-more">Ver todos →</Link>
         </div>
 
         <div className="pub-books-grid">
-          {destacados.map(libro => (
-            <Link to={`/libro/${libro.id_libro}`} key={libro.id_libro} className="pub-book-card">
-              {/* Portada real o fondo de color generado */}
-              <div className="pub-book-cover" style={libro.portada_url ? {} : { background: colorFromTitle(libro.titulo) }}>
-                {libro.portada_url
-                  ? <img
-                      src={libro.portada_url}
-                      alt={`Portada de ${libro.titulo}`}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 'inherit' }}
-                    />
-                  : <span className="pub-book-emoji">📖</span>
-                }
+          {destacados.map((libro, index) => (
+            <Link
+              to={`/libro/${libro.id_libro}`}
+              key={libro.id_libro}
+              className="pub-book-card"
+              style={{ animationDelay: `${(index % 4) * 0.08}s` }}
+            >
+              <div className="pub-book-cover">
+                <img
+                  src={libro.portada_url || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=400&auto=format&fit=crop"}
+                  alt={`Portada de ${libro.titulo}`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
               </div>
               <div className="pub-book-info">
                 <h3 className="pub-book-title">{libro.titulo}</h3>
@@ -131,27 +168,10 @@ export default function InicioPublico() {
 
       <footer className="pub-footer">
         <div className="pub-container">
-          <span>📚 Biblioteca Municipal — Sistema de Gestión Bibliotecaria</span>
+          <span>Biblioteca Municipal — Sistema de Gestión Bibliotecaria</span>
           <span>© {new Date().getFullYear()}</span>
         </div>
       </footer>
     </div>
   );
-}
-
-/* Genera un color suave a partir del título */
-function colorFromTitle(title) {
-  const colors = [
-    'linear-gradient(135deg,#667eea,#764ba2)',
-    'linear-gradient(135deg,#f093fb,#f5576c)',
-    'linear-gradient(135deg,#4facfe,#00f2fe)',
-    'linear-gradient(135deg,#43e97b,#38f9d7)',
-    'linear-gradient(135deg,#fa709a,#fee140)',
-    'linear-gradient(135deg,#a18cd1,#fbc2eb)',
-    'linear-gradient(135deg,#fccb90,#d57eeb)',
-    'linear-gradient(135deg,#a1c4fd,#c2e9fb)',
-  ];
-  let hash = 0;
-  for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
 }

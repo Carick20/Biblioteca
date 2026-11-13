@@ -98,6 +98,23 @@ export default function PrestamosPage() {
     }
   };
 
+  const handleRegistrarAtraso = async (id_detalle) => {
+    const inputDias = prompt('¿Cuántos días de atraso desea registrar?', '5');
+    if (inputDias === null) return;
+    const dias = parseInt(inputDias, 10);
+    if (isNaN(dias) || dias <= 0) {
+      alert('Ingresa un número válido de días.');
+      return;
+    }
+    try {
+      const { data } = await api.post(`/prestamos/registrar-atraso/${id_detalle}`, { dias });
+      alert(data.message);
+      fetchAll();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error al registrar atraso.');
+    }
+  };
+
   const hoy = new Date().toISOString().slice(0, 10);
 
   return (
@@ -140,6 +157,9 @@ export default function PrestamosPage() {
                       {p.dias_vencido > 0 && <span className="badge badge-danger ml-1">Vencido</span>}
                     </td>
                     <td>
+                      <button className="btn btn-warning btn-sm" style={{ marginRight: 6 }} onClick={() => handleRegistrarAtraso(p.id_detalle)} title="Registrar atraso en la devolución">
+                        ⏱️ Atraso
+                      </button>
                       <button className="btn btn-success btn-sm" style={{ marginRight: 6 }} onClick={() => { setEstadoEj('DISPONIBLE'); setModalDev(p.id_detalle); }}>
                         ↩ Devolver
                       </button>
@@ -181,45 +201,58 @@ export default function PrestamosPage() {
       )}
 
       {/* Modal nuevo préstamo */}
-      <Modal open={modal} onClose={() => setModal(false)} title="Registrar nuevo préstamo">
+      <Modal open={modal} onClose={() => { setModal(false); setMsg({ text: '', type: '' }); }} title="Registrar nuevo préstamo">
         {msg.text && <div className={`alert alert-${msg.type === 'error' ? 'error' : 'success'}`}>{msg.text}</div>}
-        <form onSubmit={handlePrestar}>
-          <div className="form-group">
-            <label>Lector *</label>
-            <select name="id_lector" className="form-control" value={form.id_lector}
-              onChange={e => setForm(f => ({ ...f, id_lector: e.target.value }))}>
-              <option value="">— Seleccionar —</option>
-              {lectores.map(l => (
-                <option key={l.id_lector} value={l.id_lector}>
-                  {l.nombre_completo} ({l.codigo_lector})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Ejemplares disponibles * <small className="text-muted">(selecciona uno o varios)</small></label>
-            <div style={{ maxHeight: 220, overflowY: 'auto', border: '1.5px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px' }}>
-              {disponibles.length === 0 ? (
-                <p className="text-muted">No hay ejemplares disponibles.</p>
-              ) : disponibles.map(d => (
-                <label key={d.id_ejemplar} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={form.id_ejemplares.includes(d.id_ejemplar)}
-                    onChange={() => toggleEjemplar(d.id_ejemplar)}
-                  />
-                  <span>{d.titulo} — <code>{d.codigo_barras}</code></span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="flex-end mt-2">
-            <button type="button" className="btn btn-outline" onClick={() => setModal(false)}>Cancelar</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Registrando…' : 'Registrar préstamo'}
-            </button>
-          </div>
-        </form>
+        {(() => {
+          const selectedLector = lectores.find(l => String(l.id_lector) === String(form.id_lector));
+          const lectorNoApto = selectedLector && !selectedLector.es_apto;
+          return (
+            <form onSubmit={handlePrestar}>
+              <div className="form-group">
+                <label>Lector *</label>
+                <select name="id_lector" className="form-control" value={form.id_lector}
+                  onChange={e => setForm(f => ({ ...f, id_lector: e.target.value }))}>
+                  <option value="">— Seleccionar —</option>
+                  {lectores.map(l => (
+                    <option key={l.id_lector} value={l.id_lector}>
+                      {l.nombre_completo} ({l.codigo_lector}) {!l.es_apto ? '❌ [No Apto]' : '✅ [Apto]'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {lectorNoApto && (
+                <div className="alert alert-error" style={{ marginBottom: 16 }}>
+                  ⚠️ <strong>Este lector no está apto:</strong> {selectedLector.motivo_no_apto || 'Tiene multas pendientes o préstamos vencidos.'} Debe regularizar su situación para solicitar un nuevo préstamo.
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>Ejemplares disponibles * <small className="text-muted">(selecciona uno o varios)</small></label>
+                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1.5px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px' }}>
+                  {disponibles.length === 0 ? (
+                    <p className="text-muted">No hay ejemplares disponibles.</p>
+                  ) : disponibles.map(d => (
+                    <label key={d.id_ejemplar} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={form.id_ejemplares.includes(d.id_ejemplar)}
+                        onChange={() => toggleEjemplar(d.id_ejemplar)}
+                      />
+                      <span>{d.titulo} — <code>{d.codigo_barras}</code></span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex-end mt-2">
+                <button type="button" className="btn btn-outline" onClick={() => setModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={saving || lectorNoApto}>
+                  {saving ? 'Registrando…' : 'Registrar préstamo'}
+                </button>
+              </div>
+            </form>
+          );
+        })()}
       </Modal>
 
       {/* Modal devolución */}

@@ -21,7 +21,7 @@ export default function DetalleLibro() {
       {/* Navbar */}
       <nav className="pub-nav">
         <div className="pub-container pub-nav-inner">
-          <Link to="/" className="pub-nav-brand">📚 Biblioteca</Link>
+          <Link to="/" className="pub-nav-brand">Biblioteca</Link>
           <div className="pub-nav-links">
             <Link to="/"             className="pub-nav-link">Inicio</Link>
             <Link to="/catalogo"     className="pub-nav-link">Catálogo</Link>
@@ -38,14 +38,13 @@ export default function DetalleLibro() {
 
         {loading && (
           <div className="pub-loading">
-            <span className="pub-spinner">📚</span>
+            <div style={{ width: '48px', height: '48px', border: '4px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spinApple 1s linear infinite', margin: '0 auto' }}></div>
             <p>Cargando libro…</p>
           </div>
         )}
 
         {error && (
           <div className="pub-empty">
-            <span style={{ fontSize: '3rem' }}>😕</span>
             <p>{error}</p>
             <Link to="/catalogo" className="pub-btn-primary">Volver al catálogo</Link>
           </div>
@@ -54,15 +53,12 @@ export default function DetalleLibro() {
         {libro && (
           <div className="pub-detail">
             {/* Portada */}
-            <div className="pub-detail-cover" style={libro.portada_url ? {} : { background: colorFromTitle(libro.titulo) }}>
-              {libro.portada_url
-                ? <img
-                    src={libro.portada_url}
-                    alt={`Portada de ${libro.titulo}`}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 'inherit' }}
-                  />
-                : <span className="pub-detail-emoji">📖</span>
-              }
+            <div className="pub-detail-cover">
+              <img
+                src={libro.portada_url || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=400&auto=format&fit=crop"}
+                alt={`Portada de ${libro.titulo}`}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 'inherit' }}
+              />
             </div>
 
             {/* Info principal */}
@@ -77,12 +73,11 @@ export default function DetalleLibro() {
               {libro.subtitulo && <p className="pub-detail-subtitle">{libro.subtitulo}</p>}
 
               <p className="pub-detail-author">
-                ✍️ <strong>{libro.autores || 'Autor desconocido'}</strong>
+                Autor: <strong>{libro.autores || 'Autor desconocido'}</strong>
               </p>
 
               {/* Disponibilidad */}
               <div className={`pub-detail-avail ${libro.disponibles > 0 ? 'available' : 'unavailable'}`}>
-                <span>{libro.disponibles > 0 ? '✅' : '❌'}</span>
                 <div>
                   <strong>
                     {libro.disponibles > 0
@@ -151,26 +146,10 @@ export default function DetalleLibro() {
 
       <footer className="pub-footer">
         <div className="pub-container">
-          <span>📚 Biblioteca Municipal</span>
+          <span>Biblioteca Municipal</span>
           <span>© {new Date().getFullYear()}</span>
         </div>
       </footer>
     </div>
   );
-}
-
-function colorFromTitle(title) {
-  const colors = [
-    'linear-gradient(135deg,#667eea,#764ba2)',
-    'linear-gradient(135deg,#f093fb,#f5576c)',
-    'linear-gradient(135deg,#4facfe,#00f2fe)',
-    'linear-gradient(135deg,#43e97b,#38f9d7)',
-    'linear-gradient(135deg,#fa709a,#fee140)',
-    'linear-gradient(135deg,#a18cd1,#fbc2eb)',
-    'linear-gradient(135deg,#fccb90,#d57eeb)',
-    'linear-gradient(135deg,#a1c4fd,#c2e9fb)',
-  ];
-  let hash = 0;
-  for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
 }

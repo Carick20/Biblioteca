@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { useToast } from '../context/ToastContext';
 
 export default function CatalogoPublico() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -13,6 +14,19 @@ export default function CatalogoPublico() {
   const [page,        setPage]        = useState(1);
   const LIMIT = 12;
 
+  const { showToast } = useToast();
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dark_mode') === 'true');
+
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+      localStorage.setItem('dark_mode', 'true');
+    } else {
+      document.body.classList.remove('dark-mode');
+      localStorage.setItem('dark_mode', 'false');
+    }
+  }, [darkMode]);
+
   const fetchLibros = useCallback(async (q, cat, pg) => {
     setLoading(true);
     try {
@@ -21,9 +35,13 @@ export default function CatalogoPublico() {
       });
       setLibros(data.data || []);
       setTotal(data.total || 0);
-    } catch { setLibros([]); }
-    finally { setLoading(false); }
-  }, []);
+    } catch {
+      showToast('Error al cargar el catálogo de libros', 'error');
+      setLibros([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
 
   useEffect(() => {
     axios.get('/api/publico/categorias').then(r => setCategorias(r.data)).catch(() => {});
@@ -32,7 +50,7 @@ export default function CatalogoPublico() {
   useEffect(() => {
     fetchLibros(query, catSel, page);
     setSearchParams(query ? { q: query } : {});
-  }, [query, catSel, page]);
+  }, [query, catSel, page, fetchLibros, setSearchParams]);
 
   const handleSearch = e => {
     e.preventDefault();
@@ -47,11 +65,18 @@ export default function CatalogoPublico() {
       {/* Navbar pública */}
       <nav className="pub-nav">
         <div className="pub-container pub-nav-inner">
-          <Link to="/" className="pub-nav-brand">📚 Biblioteca</Link>
+          <Link to="/" className="pub-nav-brand">Biblioteca</Link>
           <div className="pub-nav-links">
             <Link to="/"            className="pub-nav-link">Inicio</Link>
             <Link to="/catalogo"    className="pub-nav-link active">Catálogo</Link>
             <Link to="/lector-login" className="pub-nav-link pub-nav-login">Mi biblioteca</Link>
+            <button
+              className="btn-theme-toggle"
+              onClick={() => setDarkMode(d => !d)}
+              title="Cambiar tema"
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
           </div>
         </div>
       </nav>
@@ -66,7 +91,7 @@ export default function CatalogoPublico() {
         {/* Búsqueda + filtros */}
         <div className="pub-cat-controls">
           <form className="pub-cat-search" onSubmit={handleSearch}>
-            <span className="pub-search-icon">🔍</span>
+            <svg className="pub-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <input
               className="pub-search-input"
               placeholder="Buscar por título, autor o ISBN…"
@@ -97,15 +122,19 @@ export default function CatalogoPublico() {
           </div>
         </div>
 
-        {/* Grid de libros */}
+        {/* Grid de libros o Skeleton Shimmer Loaders */}
         {loading ? (
-          <div className="pub-loading">
-            <span className="pub-spinner">📚</span>
-            <p>Cargando libros…</p>
+          <div className="pub-books-grid pub-books-grid-lg">
+            {[1,2,3,4,5,6,7,8].map(n => (
+              <div key={n} className="skeleton-card">
+                <div className="skeleton-line skeleton-cover"></div>
+                <div className="skeleton-line skeleton-title"></div>
+                <div className="skeleton-line skeleton-sub"></div>
+              </div>
+            ))}
           </div>
         ) : libros.length === 0 ? (
           <div className="pub-empty">
-            <span style={{ fontSize: '3rem' }}>🔍</span>
             <p>No se encontraron libros con esos criterios.</p>
             <button className="pub-btn-primary" onClick={() => { setQuery(''); setCatSel(''); setPage(1); }}>
               Limpiar búsqueda
@@ -113,26 +142,28 @@ export default function CatalogoPublico() {
           </div>
         ) : (
           <div className="pub-books-grid pub-books-grid-lg">
-            {libros.map(libro => (
-              <Link to={`/libro/${libro.id_libro}`} key={libro.id_libro} className="pub-book-card">
-                <div className="pub-book-cover" style={libro.portada_url ? {} : { background: colorFromTitle(libro.titulo) }}>
-                  {libro.portada_url
-                    ? <img
-                        src={libro.portada_url}
-                        alt={`Portada de ${libro.titulo}`}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 'inherit' }}
-                      />
-                    : <span className="pub-book-emoji">📖</span>
-                  }
+            {libros.map((libro, index) => (
+              <Link
+                to={`/libro/${libro.id_libro}`}
+                key={libro.id_libro}
+                className="pub-book-card"
+                style={{ animationDelay: `${(index % 6) * 0.05}s` }}
+              >
+                <div className="pub-book-cover">
+                  <img
+                    src={libro.portada_url || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=400&auto=format&fit=crop"}
+                    alt={`Portada de ${libro.titulo}`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
                 </div>
                 <div className="pub-book-info">
                   <h3 className="pub-book-title">{libro.titulo}</h3>
                   <p className="pub-book-author">{libro.autores || 'Autor desconocido'}</p>
                   {libro.editorial && <p className="pub-book-editorial">{libro.editorial}</p>}
                   <div className="pub-book-meta">
-                    {libro.anio_publicacion && <span>📅 {libro.anio_publicacion}</span>}
+                    {libro.anio_publicacion && <span>{libro.anio_publicacion}</span>}
                     <span className={`pub-badge ${libro.disponibles > 0 ? 'pub-badge-green' : 'pub-badge-red'}`}>
-                      {libro.disponibles > 0 ? `✅ ${libro.disponibles} disp.` : '❌ No disponible'}
+                      {libro.disponibles > 0 ? `${libro.disponibles} disp.` : 'No disponible'}
                     </span>
                   </div>
                   {libro.categorias && (
@@ -164,26 +195,10 @@ export default function CatalogoPublico() {
 
       <footer className="pub-footer">
         <div className="pub-container">
-          <span>📚 Biblioteca Municipal</span>
+          <span>Biblioteca Municipal</span>
           <span>© {new Date().getFullYear()}</span>
         </div>
       </footer>
     </div>
   );
-}
-
-function colorFromTitle(title) {
-  const colors = [
-    'linear-gradient(135deg,#667eea,#764ba2)',
-    'linear-gradient(135deg,#f093fb,#f5576c)',
-    'linear-gradient(135deg,#4facfe,#00f2fe)',
-    'linear-gradient(135deg,#43e97b,#38f9d7)',
-    'linear-gradient(135deg,#fa709a,#fee140)',
-    'linear-gradient(135deg,#a18cd1,#fbc2eb)',
-    'linear-gradient(135deg,#fccb90,#d57eeb)',
-    'linear-gradient(135deg,#a1c4fd,#c2e9fb)',
-  ];
-  let hash = 0;
-  for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
 }

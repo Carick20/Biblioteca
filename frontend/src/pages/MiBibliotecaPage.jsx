@@ -47,11 +47,11 @@ export default function MiBibliotecaPage() {
       <nav className="pub-nav" style={{ background: 'var(--primary)' }}>
         <div className="pub-container pub-nav-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Link to="/" className="pub-nav-brand" style={{ color: '#fff', fontWeight: 700 }}>
-            📚 Mi Biblioteca
+            Mi Biblioteca
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <span style={{ color: 'rgba(255,255,255,.85)', fontSize: '.9rem' }}>
-              👤 {lectorData?.nombre}
+              {lectorData?.nombre}
             </span>
             <button
               className="btn-logout"
@@ -69,7 +69,7 @@ export default function MiBibliotecaPage() {
         {/* Bienvenida */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ color: 'var(--primary)', marginBottom: 4 }}>
-            Hola, {lectorData?.nombre?.split(' ')[0]} 👋
+            Hola, {lectorData?.nombre?.split(' ')[0]}
           </h1>
           <p style={{ color: 'var(--muted)' }}>
             Código: <strong>{lectorData?.codigo_lector}</strong>
@@ -80,17 +80,16 @@ export default function MiBibliotecaPage() {
         {/* Resumen rápido */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 16, marginBottom: 32 }}>
           {[
-            { ico: '📖', val: prestamos.length,         lbl: 'Préstamos activos' },
-            { ico: '📋', val: historial.length,          lbl: 'Total historial' },
-            { ico: '⚠️',  val: multasPendientes.length,  lbl: 'Multas pendientes' },
-            { ico: '💰', val: `S/ ${totalMulta.toFixed(2)}`, lbl: 'Monto a pagar' },
+            { val: prestamos.length,         lbl: 'Préstamos activos' },
+            { val: historial.length,          lbl: 'Total historial' },
+            { val: multasPendientes.length,  lbl: 'Multas pendientes' },
+            { val: `S/ ${totalMulta.toFixed(2)}`, lbl: 'Monto a pagar' },
           ].map(c => (
             <div key={c.lbl} style={{
               background: 'var(--surface)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius)', padding: '16px 20px', textAlign: 'center',
               boxShadow: 'var(--shadow)'
             }}>
-              <div style={{ fontSize: '1.8rem' }}>{c.ico}</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>{c.val}</div>
               <div style={{ fontSize: '.8rem', color: 'var(--muted)' }}>{c.lbl}</div>
             </div>
@@ -102,10 +101,10 @@ export default function MiBibliotecaPage() {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
           {[
-            ['prestamos', '📖 Préstamos activos'],
-            ['historial', '📋 Historial'],
-            ['multas',    '⚠️ Multas'],
-            ['perfil',    '👤 Mi perfil'],
+            ['prestamos', 'Préstamos activos'],
+            ['historial', 'Historial'],
+            ['multas',    'Multas'],
+            ['perfil',    'Mi perfil'],
           ].map(([k, l]) => (
             <button
               key={k}
@@ -119,7 +118,7 @@ export default function MiBibliotecaPage() {
 
         {loading ? (
           <div className="pub-loading">
-            <span className="pub-spinner">📚</span>
+            <div style={{ width: '48px', height: '48px', border: '4px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spinApple 1s linear infinite', margin: '0 auto' }}></div>
             <p>Cargando tus datos…</p>
           </div>
         ) : (
@@ -129,7 +128,6 @@ export default function MiBibliotecaPage() {
             {tab === 'prestamos' && (
               prestamos.length === 0 ? (
                 <div className="pub-empty">
-                  <span style={{ fontSize: '3rem' }}>📭</span>
                   <p>No tienes préstamos activos.</p>
                   <Link to="/catalogo" className="pub-btn-primary">Ver catálogo →</Link>
                 </div>
@@ -180,7 +178,6 @@ export default function MiBibliotecaPage() {
             {tab === 'historial' && (
               historial.length === 0 ? (
                 <div className="pub-empty">
-                  <span style={{ fontSize: '3rem' }}>📚</span>
                   <p>Sin historial de préstamos aún.</p>
                 </div>
               ) : (
@@ -225,7 +222,6 @@ export default function MiBibliotecaPage() {
             {tab === 'multas' && (
               multas.length === 0 ? (
                 <div className="pub-empty">
-                  <span style={{ fontSize: '3rem' }}>✅</span>
                   <p>No tienes multas registradas. ¡Excelente!</p>
                 </div>
               ) : (
@@ -275,7 +271,7 @@ export default function MiBibliotecaPage() {
                 maxWidth: 480,
                 boxShadow: 'var(--shadow)',
               }}>
-                <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>👤 Datos del lector</h3>
+                <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>Datos del lector</h3>
                 {[
                   ['Nombre',           `${perfil.nombres} ${perfil.apellidos}`],
                   ['Documento',        `${perfil.tipo_documento}: ${perfil.numero_documento}`],
@@ -303,14 +299,14 @@ export default function MiBibliotecaPage() {
 
         <div style={{ marginTop: 32, textAlign: 'center' }}>
           <Link to="/catalogo" className="pub-btn-primary">
-            📖 Explorar catálogo
+            Explorar catálogo
           </Link>
         </div>
       </div>
 
       <footer className="pub-footer">
         <div className="pub-container">
-          <span>📚 Biblioteca Municipal</span>
+          <span>Biblioteca Municipal</span>
           <span>© {new Date().getFullYear()}</span>
         </div>
       </footer>
