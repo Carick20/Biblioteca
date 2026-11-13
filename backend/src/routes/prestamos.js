@@ -138,7 +138,7 @@ router.post('/devolver/:id_detalle', async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { estado_ejemplar = 'DISPONIBLE' } = req.body;
+    const { estado_ejemplar = 'DISPONIBLE', observaciones = null } = req.body;
     const id_detalle = parseInt(req.params.id_detalle, 10);
 
     const [[det]] = await conn.query(
@@ -163,8 +163,8 @@ router.post('/devolver/:id_detalle', async (req, res, next) => {
     const id_bib = bib ? bib.id_bibliotecario : 1;
 
     await conn.query(
-      'INSERT INTO devolucion(id_detalle_prestamo, id_bibliotecario, estado_ejemplar) VALUES(?,?,?)',
-      [id_detalle, id_bib, estado_ejemplar]
+      'INSERT INTO devolucion(id_detalle_prestamo, id_bibliotecario, estado_ejemplar, observaciones) VALUES(?,?,?,?)',
+      [id_detalle, id_bib, estado_ejemplar, observaciones]
     );
 
     const estadoDetalle = estado_ejemplar === 'DISPONIBLE' ? 'DEVUELTO' : estado_ejemplar;
