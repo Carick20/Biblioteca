@@ -12,11 +12,11 @@ router.get('/', async (req, res, next) => {
     const [rows] = await pool.query(
       `SELECT d.id_detalle, d.fecha_devolucion_programada, d.estado AS estado_detalle,
               p.id_prestamo, p.fecha_prestamo,
-              (per.nombres || ' ' || per.apellidos) AS lector,
+              CONCAT(per.nombres, ' ', per.apellidos) AS lector,
               lc.codigo_lector,
               l.titulo, e.codigo_barras,
               (SELECT COUNT(*) FROM renovacion r WHERE r.id_detalle_prestamo = d.id_detalle) AS renovaciones,
-              cast(julianday('now') - julianday(d.fecha_devolucion_programada) as integer) AS dias_vencido
+              DATEDIFF(CURDATE(), d.fecha_devolucion_programada) AS dias_vencido
        FROM detalle_prestamo d
        JOIN prestamo p  ON p.id_prestamo  = d.id_prestamo
        JOIN ejemplar e  ON e.id_ejemplar  = d.id_ejemplar
@@ -36,7 +36,7 @@ router.get('/historial', async (req, res, next) => {
     const [rows] = await pool.query(
       `SELECT d.id_detalle, d.fecha_devolucion_programada, d.estado AS estado_detalle,
               p.fecha_prestamo,
-              (per.nombres || ' ' || per.apellidos) AS lector,
+              CONCAT(per.nombres, ' ', per.apellidos) AS lector,
               l.titulo, e.codigo_barras,
               dv.fecha_devolucion
        FROM detalle_prestamo d

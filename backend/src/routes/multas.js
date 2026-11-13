@@ -10,7 +10,7 @@ router.get('/', async (req, res, next) => {
   try {
     const [rows] = await pool.query(
       `SELECT m.*,
-              (p.nombres || ' ' || p.apellidos) AS lector,
+              CONCAT(p.nombres, ' ', p.apellidos) AS lector,
               lc.codigo_lector
        FROM multa m
        JOIN lector lc ON lc.id_lector  = m.id_lector
@@ -25,7 +25,7 @@ router.get('/', async (req, res, next) => {
 router.patch('/:id/pagar', async (req, res, next) => {
   try {
     const [r] = await pool.query(
-      "UPDATE multa SET estado='PAGADA', fecha_pago=datetime('now') WHERE id_multa=? AND estado='PENDIENTE'",
+      "UPDATE multa SET estado='PAGADA', fecha_pago=NOW() WHERE id_multa=? AND estado='PENDIENTE'",
       [req.params.id]
     );
     if (!r.affectedRows)

@@ -41,7 +41,7 @@ router.get('/prestamos', async (req, res, next) => {
               l.titulo, l.isbn,
               e.codigo_barras,
               (SELECT COUNT(*) FROM renovacion r WHERE r.id_detalle_prestamo = d.id_detalle) AS renovaciones,
-              cast(julianday('now') - julianday(d.fecha_devolucion_programada) as integer) AS dias_vencido
+              DATEDIFF(CURDATE(), d.fecha_devolucion_programada) AS dias_vencido
        FROM detalle_prestamo d
        JOIN prestamo p ON p.id_prestamo = d.id_prestamo
        JOIN ejemplar e ON e.id_ejemplar  = d.id_ejemplar

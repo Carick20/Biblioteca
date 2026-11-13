@@ -43,7 +43,7 @@ app.use('/api/catalogo',       catalogoRouter);      // admin
 app.use('/api/mi-biblioteca',  miBibliotecaRouter);  // lector autenticado
 
 app.get('/api/health', (_req, res) =>
-  res.json({ status: 'ok', db: 'SQLite (sql.js)', ts: new Date().toISOString() })
+  res.json({ status: 'ok', db: 'MySQL', ts: new Date().toISOString() })
 );
 
 app.use((_req, res) => res.status(404).json({ message: 'Ruta no encontrada.' }));

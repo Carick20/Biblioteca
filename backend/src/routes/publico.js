@@ -34,7 +34,7 @@ router.get('/libros', async (req, res, next) => {
       `SELECT l.id_libro, l.titulo, l.isbn, l.anio_publicacion, l.idioma, l.descripcion,
               l.portada_url,
               ed.nombre AS editorial,
-              GROUP_CONCAT(DISTINCT (a.nombres || ' ' || COALESCE(a.apellidos,''))) AS autores,
+              GROUP_CONCAT(DISTINCT CONCAT(a.nombres, ' ', COALESCE(a.apellidos,''))) AS autores,
               GROUP_CONCAT(DISTINCT c.nombre) AS categorias,
               SUM(CASE WHEN e.estado='DISPONIBLE' THEN 1 ELSE 0 END) AS disponibles,
               COUNT(DISTINCT e.id_ejemplar) AS total_ejemplares
@@ -79,7 +79,7 @@ router.get('/libros/:id', async (req, res, next) => {
     const [rows] = await pool.query(
       `SELECT l.*,
               ed.nombre AS editorial,
-              GROUP_CONCAT(DISTINCT (a.nombres || ' ' || COALESCE(a.apellidos,''))) AS autores,
+              GROUP_CONCAT(DISTINCT CONCAT(a.nombres, ' ', COALESCE(a.apellidos,''))) AS autores,
               GROUP_CONCAT(DISTINCT c.nombre) AS categorias,
               SUM(CASE WHEN e.estado='DISPONIBLE' THEN 1 ELSE 0 END) AS disponibles,
               COUNT(DISTINCT e.id_ejemplar) AS total_ejemplares
@@ -122,7 +122,7 @@ router.get('/destacados', async (req, res, next) => {
       `SELECT l.id_libro, l.titulo, l.anio_publicacion,
               l.portada_url,
               ed.nombre AS editorial,
-              GROUP_CONCAT(DISTINCT (a.nombres || ' ' || COALESCE(a.apellidos,''))) AS autores,
+              GROUP_CONCAT(DISTINCT CONCAT(a.nombres, ' ', COALESCE(a.apellidos,''))) AS autores,
               GROUP_CONCAT(DISTINCT c.nombre) AS categorias,
               SUM(CASE WHEN e.estado='DISPONIBLE' THEN 1 ELSE 0 END) AS disponibles,
               COUNT(DISTINCT dp.id_detalle) AS veces_prestado

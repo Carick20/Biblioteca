@@ -1,7 +1,7 @@
 {
   "name": "biblioteca-backend",
   "version": "1.0.0",
-  "description": "API REST - Sistema de Gestión Bibliotecaria (SQLite via sql.js)",
+  "description": "API REST - Sistema de Gestión Bibliotecaria (MySQL)",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -14,7 +14,7 @@
     "express": "4.19.2",
     "jsonwebtoken": "9.0.2",
     "multer": "^1.4.5-lts.1",
-    "sql.js": "1.10.3"
+    "mysql2": "3.9.7"
   },
   "devDependencies": {
     "nodemon": "3.1.3"

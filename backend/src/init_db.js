@@ -2,344 +2,425 @@
  * init_db.js
  * ──────────────────────────────────────────────────────────────
  * Crea tablas (si no existen) y siembra datos demo al arrancar.
- * Compatible con sql.js (async, puro JavaScript).
+ * Compatible con MySQL 8.0+ usando mysql2/promise.
  * ──────────────────────────────────────────────────────────────
  */
-
 const pool   = require('./config/database');
 const bcrypt = require('bcryptjs');
-const fs     = require('fs');
-const path   = require('path');
-
-const DB_PATH = path.join(__dirname, '..', 'database', 'biblioteca.db');
-
-const DDL = `
-PRAGMA foreign_keys = ON;
-
-CREATE TABLE IF NOT EXISTS persona (
-  id_persona       INTEGER PRIMARY KEY AUTOINCREMENT,
-  tipo_documento   TEXT NOT NULL DEFAULT 'DNI',
-  numero_documento TEXT NOT NULL UNIQUE,
-  nombres          TEXT NOT NULL,
-  apellidos        TEXT NOT NULL,
-  fecha_nacimiento TEXT,
-  telefono         TEXT,
-  correo           TEXT,
-  direccion        TEXT,
-  fecha_registro   TEXT NOT NULL DEFAULT (datetime('now')),
-  estado           TEXT NOT NULL DEFAULT 'ACTIVO'
-);
-CREATE TABLE IF NOT EXISTS tipo_lector (
-  id_tipo_lector INTEGER PRIMARY KEY AUTOINCREMENT,
-  nombre         TEXT NOT NULL UNIQUE,
-  descripcion    TEXT,
-  estado         TEXT NOT NULL DEFAULT 'ACTIVO'
-);
-CREATE TABLE IF NOT EXISTS lector (
-  id_lector         INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_persona        INTEGER NOT NULL UNIQUE,
-  id_tipo_lector    INTEGER NOT NULL,
-  codigo_lector     TEXT NOT NULL UNIQUE,
-  fecha_inscripcion TEXT NOT NULL,
-  fecha_vencimiento TEXT,
-  estado            TEXT NOT NULL DEFAULT 'ACTIVO',
-  FOREIGN KEY (id_persona)     REFERENCES persona(id_persona),
-  FOREIGN KEY (id_tipo_lector) REFERENCES tipo_lector(id_tipo_lector)
-);
-CREATE TABLE IF NOT EXISTS empleado (
-  id_empleado        INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_persona         INTEGER NOT NULL UNIQUE,
-  codigo_empleado    TEXT NOT NULL UNIQUE,
-  cargo              TEXT NOT NULL,
-  fecha_contratacion TEXT,
-  estado             TEXT NOT NULL DEFAULT 'ACTIVO',
-  FOREIGN KEY (id_persona) REFERENCES persona(id_persona)
-);
-CREATE TABLE IF NOT EXISTS bibliotecario (
-  id_bibliotecario   INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_empleado        INTEGER NOT NULL UNIQUE,
-  codigo_profesional TEXT,
-  estado             TEXT NOT NULL DEFAULT 'ACTIVO',
-  FOREIGN KEY (id_empleado) REFERENCES empleado(id_empleado)
-);
-CREATE TABLE IF NOT EXISTS rol (
-  id_rol INTEGER PRIMARY KEY AUTOINCREMENT,
-  nombre TEXT NOT NULL UNIQUE
-);
-CREATE TABLE IF NOT EXISTS usuario (
-  id_usuario    INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_persona    INTEGER NOT NULL UNIQUE,
-  id_rol        INTEGER NOT NULL,
-  username      TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  estado        TEXT NOT NULL DEFAULT 'ACTIVO',
-  ultimo_acceso TEXT,
-  FOREIGN KEY (id_persona) REFERENCES persona(id_persona),
-  FOREIGN KEY (id_rol)     REFERENCES rol(id_rol)
-);
-CREATE TABLE IF NOT EXISTS autor (
-  id_autor         INTEGER PRIMARY KEY AUTOINCREMENT,
-  nombres          TEXT NOT NULL,
-  apellidos        TEXT,
-  nacionalidad     TEXT,
-  fecha_nacimiento TEXT,
-  biografia        TEXT
-);
-CREATE TABLE IF NOT EXISTS editorial (
-  id_editorial INTEGER PRIMARY KEY AUTOINCREMENT,
-  nombre       TEXT NOT NULL UNIQUE,
-  pais         TEXT,
-  telefono     TEXT,
-  correo       TEXT,
-  estado       TEXT NOT NULL DEFAULT 'ACTIVO'
-);
-CREATE TABLE IF NOT EXISTS categoria (
-  id_categoria INTEGER PRIMARY KEY AUTOINCREMENT,
-  nombre       TEXT NOT NULL UNIQUE,
-  descripcion  TEXT,
-  estado       TEXT NOT NULL DEFAULT 'ACTIVO'
-);
-CREATE TABLE IF NOT EXISTS libro (
-  id_libro         INTEGER PRIMARY KEY AUTOINCREMENT,
-  isbn             TEXT UNIQUE,
-  titulo           TEXT NOT NULL,
-  subtitulo        TEXT,
-  id_editorial     INTEGER,
-  anio_publicacion INTEGER,
-  numero_paginas   INTEGER,
-  idioma           TEXT DEFAULT 'Español',
-  descripcion      TEXT,
-  portada_url      TEXT,
-  estado           TEXT NOT NULL DEFAULT 'ACTIVO',
-  fecha_registro   TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (id_editorial) REFERENCES editorial(id_editorial)
-);
-CREATE TABLE IF NOT EXISTS libro_autor (
-  id_libro INTEGER NOT NULL,
-  id_autor INTEGER NOT NULL,
-  PRIMARY KEY (id_libro, id_autor),
-  FOREIGN KEY (id_libro) REFERENCES libro(id_libro),
-  FOREIGN KEY (id_autor) REFERENCES autor(id_autor)
-);
-CREATE TABLE IF NOT EXISTS libro_categoria (
-  id_libro     INTEGER NOT NULL,
-  id_categoria INTEGER NOT NULL,
-  PRIMARY KEY (id_libro, id_categoria),
-  FOREIGN KEY (id_libro)     REFERENCES libro(id_libro),
-  FOREIGN KEY (id_categoria) REFERENCES categoria(id_categoria)
-);
-CREATE TABLE IF NOT EXISTS ejemplar (
-  id_ejemplar       INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_libro          INTEGER NOT NULL,
-  ubicacion         TEXT,
-  codigo_barras     TEXT NOT NULL UNIQUE,
-  fecha_adquisicion TEXT,
-  costo_adquisicion REAL,
-  estado            TEXT NOT NULL DEFAULT 'DISPONIBLE',
-  FOREIGN KEY (id_libro) REFERENCES libro(id_libro)
-);
-CREATE TABLE IF NOT EXISTS politica_prestamo (
-  id_politica      INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_tipo_lector   INTEGER NOT NULL UNIQUE,
-  max_libros       INTEGER NOT NULL DEFAULT 3,
-  dias_prestamo    INTEGER NOT NULL DEFAULT 7,
-  max_renovaciones INTEGER NOT NULL DEFAULT 2,
-  dias_renovacion  INTEGER NOT NULL DEFAULT 7,
-  multa_por_dia    REAL NOT NULL DEFAULT 1.00,
-  FOREIGN KEY (id_tipo_lector) REFERENCES tipo_lector(id_tipo_lector)
-);
-CREATE TABLE IF NOT EXISTS prestamo (
-  id_prestamo      INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_lector        INTEGER NOT NULL,
-  id_bibliotecario INTEGER NOT NULL,
-  fecha_prestamo   TEXT NOT NULL DEFAULT (datetime('now')),
-  estado           TEXT NOT NULL DEFAULT 'ACTIVO',
-  observaciones    TEXT,
-  FOREIGN KEY (id_lector)        REFERENCES lector(id_lector),
-  FOREIGN KEY (id_bibliotecario) REFERENCES bibliotecario(id_bibliotecario)
-);
-CREATE TABLE IF NOT EXISTS detalle_prestamo (
-  id_detalle                  INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_prestamo                 INTEGER NOT NULL,
-  id_ejemplar                 INTEGER NOT NULL,
-  fecha_devolucion_programada TEXT NOT NULL,
-  estado                      TEXT NOT NULL DEFAULT 'ACTIVO',
-  FOREIGN KEY (id_prestamo) REFERENCES prestamo(id_prestamo),
-  FOREIGN KEY (id_ejemplar) REFERENCES ejemplar(id_ejemplar)
-);
-CREATE TABLE IF NOT EXISTS devolucion (
-  id_devolucion       INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_detalle_prestamo INTEGER NOT NULL UNIQUE,
-  id_bibliotecario    INTEGER NOT NULL,
-  fecha_devolucion    TEXT NOT NULL DEFAULT (datetime('now')),
-  estado_ejemplar     TEXT,
-  observaciones       TEXT,
-  FOREIGN KEY (id_detalle_prestamo) REFERENCES detalle_prestamo(id_detalle),
-  FOREIGN KEY (id_bibliotecario)    REFERENCES bibliotecario(id_bibliotecario)
-);
-CREATE TABLE IF NOT EXISTS renovacion (
-  id_renovacion             INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_detalle_prestamo       INTEGER NOT NULL,
-  fecha_renovacion          TEXT NOT NULL DEFAULT (datetime('now')),
-  fecha_devolucion_anterior TEXT NOT NULL,
-  nueva_fecha_devolucion    TEXT NOT NULL,
-  motivo                    TEXT,
-  FOREIGN KEY (id_detalle_prestamo) REFERENCES detalle_prestamo(id_detalle)
-);
-CREATE TABLE IF NOT EXISTS reserva (
-  id_reserva        INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_lector         INTEGER NOT NULL,
-  id_libro          INTEGER NOT NULL,
-  fecha_reserva     TEXT NOT NULL DEFAULT (datetime('now')),
-  fecha_vencimiento TEXT,
-  estado            TEXT NOT NULL DEFAULT 'PENDIENTE',
-  FOREIGN KEY (id_lector) REFERENCES lector(id_lector),
-  FOREIGN KEY (id_libro)  REFERENCES libro(id_libro)
-);
-CREATE TABLE IF NOT EXISTS multa (
-  id_multa         INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_lector        INTEGER NOT NULL,
-  id_prestamo      INTEGER NOT NULL,
-  concepto         TEXT NOT NULL,
-  monto            REAL NOT NULL,
-  fecha_generacion TEXT NOT NULL DEFAULT (datetime('now')),
-  fecha_pago       TEXT,
-  estado           TEXT NOT NULL DEFAULT 'PENDIENTE',
-  FOREIGN KEY (id_lector)   REFERENCES lector(id_lector),
-  FOREIGN KEY (id_prestamo) REFERENCES prestamo(id_prestamo)
-);
-CREATE TABLE IF NOT EXISTS historial_actividad (
-  id_historial INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_usuario   INTEGER,
-  accion       TEXT NOT NULL,
-  detalle      TEXT,
-  ip_origen    TEXT,
-  fecha        TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
-);
-CREATE TABLE IF NOT EXISTS configuracion (
-  clave       TEXT PRIMARY KEY,
-  valor       TEXT NOT NULL,
-  descripcion TEXT
-);
-`;
-
-// Guardar BD en disco
-function persist(db) {
-  const data = db.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
-}
 
 async function initDB() {
-  console.log('🗄️  Inicializando base de datos SQLite (sql.js)…');
+  console.log('🗄️  Inicializando base de datos MySQL…');
+  const conn = await pool.getConnection();
+  try {
+    // ── DDL: crear tablas si no existen ──────────────────────
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS persona (
+        id_persona       INT AUTO_INCREMENT PRIMARY KEY,
+        tipo_documento   VARCHAR(20)  NOT NULL DEFAULT 'DNI',
+        numero_documento VARCHAR(20)  NOT NULL UNIQUE,
+        nombres          VARCHAR(100) NOT NULL,
+        apellidos        VARCHAR(100) NOT NULL,
+        fecha_nacimiento DATE,
+        telefono         VARCHAR(20),
+        correo           VARCHAR(120),
+        direccion        VARCHAR(200),
+        fecha_registro   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        estado           VARCHAR(20)  NOT NULL DEFAULT 'ACTIVO'
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  const db = await pool._raw();
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS tipo_lector (
+        id_tipo_lector INT AUTO_INCREMENT PRIMARY KEY,
+        nombre         VARCHAR(80) NOT NULL UNIQUE,
+        descripcion    TEXT,
+        estado         VARCHAR(20) NOT NULL DEFAULT 'ACTIVO'
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  // Crear todas las tablas
-  db.run(DDL);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS lector (
+        id_lector         INT AUTO_INCREMENT PRIMARY KEY,
+        id_persona        INT         NOT NULL UNIQUE,
+        id_tipo_lector    INT         NOT NULL,
+        codigo_lector     VARCHAR(30) NOT NULL UNIQUE,
+        fecha_inscripcion DATE        NOT NULL,
+        fecha_vencimiento DATE,
+        estado            VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+        FOREIGN KEY (id_persona)     REFERENCES persona(id_persona)           ON DELETE RESTRICT,
+        FOREIGN KEY (id_tipo_lector) REFERENCES tipo_lector(id_tipo_lector)   ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  // Verificar si ya hay datos seed
-  const hayRoles = db.exec("SELECT COUNT(*) AS n FROM rol")[0]?.values[0][0] ?? 0;
-  if (hayRoles > 0) {
-    console.log('   ✔ Datos iniciales ya presentes. Seed omitido.');
-    persist(db);
-    return;
-  }
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS empleado (
+        id_empleado        INT AUTO_INCREMENT PRIMARY KEY,
+        id_persona         INT         NOT NULL UNIQUE,
+        codigo_empleado    VARCHAR(30) NOT NULL UNIQUE,
+        cargo              VARCHAR(100) NOT NULL,
+        fecha_contratacion DATE,
+        estado             VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+        FOREIGN KEY (id_persona) REFERENCES persona(id_persona) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  console.log('   🌱 Insertando datos iniciales…');
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS bibliotecario (
+        id_bibliotecario   INT AUTO_INCREMENT PRIMARY KEY,
+        id_empleado        INT NOT NULL UNIQUE,
+        codigo_profesional VARCHAR(30),
+        estado             VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+        FOREIGN KEY (id_empleado) REFERENCES empleado(id_empleado) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  const hoy   = new Date().toISOString().slice(0, 10);
-  const vence = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS rol (
+        id_rol INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(50) NOT NULL UNIQUE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  // Helper: ejecutar INSERT y retornar lastInsertRowid
-  const ins = (sql, ...args) => {
-    db.run(sql, args);
-    return db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0];
-  };
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS usuario (
+        id_usuario    INT AUTO_INCREMENT PRIMARY KEY,
+        id_persona    INT          NOT NULL UNIQUE,
+        id_rol        INT          NOT NULL,
+        username      VARCHAR(50)  NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        estado        VARCHAR(20)  NOT NULL DEFAULT 'ACTIVO',
+        ultimo_acceso DATETIME,
+        FOREIGN KEY (id_persona) REFERENCES persona(id_persona) ON DELETE RESTRICT,
+        FOREIGN KEY (id_rol)     REFERENCES rol(id_rol)         ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  // Roles
-  ins("INSERT INTO rol(nombre) VALUES(?)", 'ADMIN');
-  ins("INSERT INTO rol(nombre) VALUES(?)", 'BIBLIOTECARIO');
-  ins("INSERT INTO rol(nombre) VALUES(?)", 'CONSULTA');
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS autor (
+        id_autor        INT AUTO_INCREMENT PRIMARY KEY,
+        nombres         VARCHAR(100) NOT NULL,
+        apellidos       VARCHAR(100),
+        nacionalidad    VARCHAR(80),
+        fecha_nacimiento DATE,
+        biografia       TEXT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  // Tipos de lector + políticas de préstamo
-  const tEst = ins("INSERT INTO tipo_lector(nombre,descripcion) VALUES(?,?)", 'Estudiante',      'Alumno de nivel educativo');
-  const tDoc = ins("INSERT INTO tipo_lector(nombre,descripcion) VALUES(?,?)", 'Docente',         'Profesor o investigador');
-  const tExt = ins("INSERT INTO tipo_lector(nombre,descripcion) VALUES(?,?)", 'Usuario externo', 'Persona externa a la institución');
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS editorial (
+        id_editorial INT AUTO_INCREMENT PRIMARY KEY,
+        nombre       VARCHAR(150) NOT NULL UNIQUE,
+        pais         VARCHAR(80),
+        telefono     VARCHAR(20),
+        correo       VARCHAR(120),
+        estado       VARCHAR(20) NOT NULL DEFAULT 'ACTIVO'
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  ins("INSERT INTO politica_prestamo(id_tipo_lector,max_libros,dias_prestamo,max_renovaciones,dias_renovacion,multa_por_dia) VALUES(?,?,?,?,?,?)", tEst, 3,  7, 2, 7, 1.00);
-  ins("INSERT INTO politica_prestamo(id_tipo_lector,max_libros,dias_prestamo,max_renovaciones,dias_renovacion,multa_por_dia) VALUES(?,?,?,?,?,?)", tDoc, 5, 14, 3, 7, 0.50);
-  ins("INSERT INTO politica_prestamo(id_tipo_lector,max_libros,dias_prestamo,max_renovaciones,dias_renovacion,multa_por_dia) VALUES(?,?,?,?,?,?)", tExt, 2,  7, 1, 7, 2.00);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS categoria (
+        id_categoria INT AUTO_INCREMENT PRIMARY KEY,
+        nombre       VARCHAR(100) NOT NULL UNIQUE,
+        descripcion  TEXT,
+        estado       VARCHAR(20) NOT NULL DEFAULT 'ACTIVO'
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  // Admin: persona → empleado → bibliotecario → usuario
-  const pAdmin = ins("INSERT INTO persona(tipo_documento,numero_documento,nombres,apellidos) VALUES('DNI','00000001','Administrador','General')");
-  const eAdmin = ins("INSERT INTO empleado(id_persona,codigo_empleado,cargo,fecha_contratacion) VALUES(?,'EMP-001','Jefe de Biblioteca',?)", pAdmin, hoy);
-  ins("INSERT INTO bibliotecario(id_empleado) VALUES(?)", eAdmin);
-  const hashAdmin = bcrypt.hashSync('admin123', 10);
-  ins("INSERT INTO usuario(id_persona,id_rol,username,password_hash) VALUES(?,1,'admin',?)", pAdmin, hashAdmin);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS libro (
+        id_libro         INT AUTO_INCREMENT PRIMARY KEY,
+        isbn             VARCHAR(20) UNIQUE,
+        titulo           VARCHAR(200) NOT NULL,
+        subtitulo        VARCHAR(200),
+        id_editorial     INT,
+        anio_publicacion YEAR,
+        numero_paginas   INT,
+        idioma           VARCHAR(50)  DEFAULT 'Español',
+        descripcion      TEXT,
+        portada_url      VARCHAR(500),
+        estado           VARCHAR(20)  NOT NULL DEFAULT 'ACTIVO',
+        fecha_registro   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_editorial) REFERENCES editorial(id_editorial) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  // Lectores demo
-  const lectoresDemo = [
-    ['70000001', 'María',   'López',  tEst],
-    ['70000002', 'Juan',    'Pérez',  tDoc],
-    ['70000003', 'Ana',     'Torres', tEst],
-  ];
-  for (const [doc, nom, ape, tipo] of lectoresDemo) {
-    const p = ins(
-      "INSERT INTO persona(tipo_documento,numero_documento,nombres,apellidos,correo) VALUES('DNI',?,?,?,?)",
-      doc, nom, ape, `${nom.toLowerCase()}@example.com`
-    );
-    ins(
-      "INSERT INTO lector(id_persona,id_tipo_lector,codigo_lector,fecha_inscripcion,fecha_vencimiento) VALUES(?,?,?,?,?)",
-      p, tipo, `LEC-${String(p).padStart(4,'0')}`, hoy, vence
-    );
-  }
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS libro_autor (
+        id_libro INT NOT NULL,
+        id_autor INT NOT NULL,
+        PRIMARY KEY (id_libro, id_autor),
+        FOREIGN KEY (id_libro) REFERENCES libro(id_libro) ON DELETE CASCADE,
+        FOREIGN KEY (id_autor) REFERENCES autor(id_autor) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  // Editoriales y categorías
-  const edAl = ins("INSERT INTO editorial(nombre,pais) VALUES('Alfaguara','España')");
-  const edLo = ins("INSERT INTO editorial(nombre,pais) VALUES('Losada','Argentina')");
-               ins("INSERT INTO editorial(nombre,pais) VALUES('Planeta','España')");
-  const catL = ins("INSERT INTO categoria(nombre) VALUES('Literatura')");
-               ins("INSERT INTO categoria(nombre) VALUES('Ciencia')");
-               ins("INSERT INTO categoria(nombre) VALUES('Historia')");
-               ins("INSERT INTO categoria(nombre) VALUES('Tecnología')");
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS libro_categoria (
+        id_libro     INT NOT NULL,
+        id_categoria INT NOT NULL,
+        PRIMARY KEY (id_libro, id_categoria),
+        FOREIGN KEY (id_libro)     REFERENCES libro(id_libro)         ON DELETE CASCADE,
+        FOREIGN KEY (id_categoria) REFERENCES categoria(id_categoria) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
-  // Libros + autores + ejemplares demo
-  const librosDemo = [
-    ['Los ríos profundos',          'José María', 'Arguedas',       'Peruana',    1958, edAl, 2],
-    ['Conversación en La Catedral', 'Mario',      'Vargas Llosa',   'Peruana',    1969, edAl, 1],
-    ['Rayuela',                     'Julio',      'Cortázar',       'Argentina',  1963, edLo, 2],
-    ['Ficciones',                   'Jorge Luis', 'Borges',         'Argentina',  1944, edLo, 3],
-    ['Cien años de soledad',        'Gabriel',    'García Márquez', 'Colombiana', 1967, edAl, 2],
-  ];
-  for (const [titulo, nom, ape, nac, anio, edId, nEj] of librosDemo) {
-    const aId = ins("INSERT INTO autor(nombres,apellidos,nacionalidad) VALUES(?,?,?)", nom, ape, nac);
-    const lId = ins("INSERT INTO libro(titulo,id_editorial,anio_publicacion,idioma) VALUES(?,?,?,'Español')", titulo, edId, anio);
-    ins("INSERT INTO libro_autor(id_libro,id_autor) VALUES(?,?)", lId, aId);
-    ins("INSERT INTO libro_categoria(id_libro,id_categoria) VALUES(?,?)", lId, catL);
-    for (let k = 1; k <= nEj; k++) {
-      ins(
-        "INSERT INTO ejemplar(id_libro,codigo_barras,fecha_adquisicion) VALUES(?,?,?)",
-        lId, `L${String(lId).padStart(5,'0')}-${String(k).padStart(2,'0')}`, hoy
-      );
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ejemplar (
+        id_ejemplar       INT AUTO_INCREMENT PRIMARY KEY,
+        id_libro          INT         NOT NULL,
+        ubicacion         VARCHAR(60),
+        codigo_barras     VARCHAR(50) NOT NULL UNIQUE,
+        fecha_adquisicion DATE,
+        costo_adquisicion DECIMAL(10,2),
+        estado            VARCHAR(30) NOT NULL DEFAULT 'DISPONIBLE',
+        FOREIGN KEY (id_libro) REFERENCES libro(id_libro) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS politica_prestamo (
+        id_politica      INT AUTO_INCREMENT PRIMARY KEY,
+        id_tipo_lector   INT NOT NULL UNIQUE,
+        max_libros       INT            NOT NULL DEFAULT 3,
+        dias_prestamo    INT            NOT NULL DEFAULT 7,
+        max_renovaciones INT            NOT NULL DEFAULT 2,
+        dias_renovacion  INT            NOT NULL DEFAULT 7,
+        multa_por_dia    DECIMAL(10,2)  NOT NULL DEFAULT 1.00,
+        FOREIGN KEY (id_tipo_lector) REFERENCES tipo_lector(id_tipo_lector) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS prestamo (
+        id_prestamo      INT AUTO_INCREMENT PRIMARY KEY,
+        id_lector        INT         NOT NULL,
+        id_bibliotecario INT         NOT NULL,
+        fecha_prestamo   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        estado           VARCHAR(30) NOT NULL DEFAULT 'ACTIVO',
+        observaciones    TEXT,
+        FOREIGN KEY (id_lector)        REFERENCES lector(id_lector)                   ON DELETE RESTRICT,
+        FOREIGN KEY (id_bibliotecario) REFERENCES bibliotecario(id_bibliotecario)     ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS detalle_prestamo (
+        id_detalle                  INT AUTO_INCREMENT PRIMARY KEY,
+        id_prestamo                 INT         NOT NULL,
+        id_ejemplar                 INT         NOT NULL,
+        fecha_devolucion_programada DATE        NOT NULL,
+        estado                      VARCHAR(30) NOT NULL DEFAULT 'ACTIVO',
+        FOREIGN KEY (id_prestamo) REFERENCES prestamo(id_prestamo) ON DELETE RESTRICT,
+        FOREIGN KEY (id_ejemplar) REFERENCES ejemplar(id_ejemplar) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS devolucion (
+        id_devolucion       INT AUTO_INCREMENT PRIMARY KEY,
+        id_detalle_prestamo INT         NOT NULL UNIQUE,
+        id_bibliotecario    INT         NOT NULL,
+        fecha_devolucion    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        estado_ejemplar     VARCHAR(30),
+        observaciones       TEXT,
+        FOREIGN KEY (id_detalle_prestamo) REFERENCES detalle_prestamo(id_detalle)      ON DELETE RESTRICT,
+        FOREIGN KEY (id_bibliotecario)    REFERENCES bibliotecario(id_bibliotecario)   ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS renovacion (
+        id_renovacion             INT AUTO_INCREMENT PRIMARY KEY,
+        id_detalle_prestamo       INT         NOT NULL,
+        fecha_renovacion          DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        fecha_devolucion_anterior DATE        NOT NULL,
+        nueva_fecha_devolucion    DATE        NOT NULL,
+        motivo                    VARCHAR(200),
+        FOREIGN KEY (id_detalle_prestamo) REFERENCES detalle_prestamo(id_detalle) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS reserva (
+        id_reserva        INT AUTO_INCREMENT PRIMARY KEY,
+        id_lector         INT         NOT NULL,
+        id_libro          INT         NOT NULL,
+        fecha_reserva     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        fecha_vencimiento DATE,
+        estado            VARCHAR(30) NOT NULL DEFAULT 'PENDIENTE',
+        FOREIGN KEY (id_lector) REFERENCES lector(id_lector) ON DELETE RESTRICT,
+        FOREIGN KEY (id_libro)  REFERENCES libro(id_libro)   ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS multa (
+        id_multa         INT AUTO_INCREMENT PRIMARY KEY,
+        id_lector        INT          NOT NULL,
+        id_prestamo      INT          NOT NULL,
+        concepto         VARCHAR(150) NOT NULL,
+        monto            DECIMAL(10,2) NOT NULL,
+        fecha_generacion DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        fecha_pago       DATETIME,
+        estado           VARCHAR(30)  NOT NULL DEFAULT 'PENDIENTE',
+        FOREIGN KEY (id_lector)   REFERENCES lector(id_lector)     ON DELETE RESTRICT,
+        FOREIGN KEY (id_prestamo) REFERENCES prestamo(id_prestamo) ON DELETE RESTRICT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS historial_actividad (
+        id_historial INT AUTO_INCREMENT PRIMARY KEY,
+        id_usuario   INT,
+        accion       VARCHAR(100) NOT NULL,
+        detalle      TEXT,
+        ip_origen    VARCHAR(45),
+        fecha        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS configuracion (
+        clave       VARCHAR(80)  PRIMARY KEY,
+        valor       VARCHAR(500) NOT NULL,
+        descripcion VARCHAR(200)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    console.log('✅ Tablas creadas / verificadas.');
+
+    // ── Seed: solo si no hay datos ────────────────────────────
+    const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM rol');
+    if (parseInt(n, 10) > 0) {
+      console.log('ℹ️  Datos de demo ya existen. Seed omitido.');
+      conn.release();
+      return;
     }
+
+    console.log('🌱 Sembrando datos de demo…');
+
+    // Roles
+    await conn.query(`INSERT IGNORE INTO rol(nombre) VALUES('ADMIN'),('BIBLIOTECARIO'),('CONSULTA')`);
+
+    // Tipos de lector
+    await conn.query(`
+      INSERT IGNORE INTO tipo_lector(id_tipo_lector, nombre, descripcion) VALUES
+        (1, 'Estudiante',      'Alumno de cualquier nivel educativo'),
+        (2, 'Docente',         'Profesor o investigador'),
+        (3, 'Usuario externo', 'Persona externa a la institución')
+    `);
+
+    // Políticas de préstamo
+    await conn.query(`
+      INSERT IGNORE INTO politica_prestamo
+        (id_tipo_lector, max_libros, dias_prestamo, max_renovaciones, dias_renovacion, multa_por_dia) VALUES
+        (1, 3,  7, 2, 7, 1.00),
+        (2, 5, 14, 3, 7, 0.50),
+        (3, 2,  7, 1, 7, 2.00)
+    `);
+
+    // Persona admin
+    await conn.query(`
+      INSERT IGNORE INTO persona(id_persona, tipo_documento, numero_documento, nombres, apellidos)
+        VALUES(1, 'DNI', '00000001', 'Administrador', 'General')
+    `);
+
+    // Empleado y bibliotecario
+    await conn.query(`
+      INSERT IGNORE INTO empleado(id_empleado, id_persona, codigo_empleado, cargo, fecha_contratacion)
+        VALUES(1, 1, 'EMP-001', 'Jefe de Biblioteca', CURDATE())
+    `);
+    await conn.query(`
+      INSERT IGNORE INTO bibliotecario(id_bibliotecario, id_empleado)
+        VALUES(1, 1)
+    `);
+
+    // Usuario admin — contraseña: admin123
+    const hash = await bcrypt.hash('admin123', 10);
+    await conn.query(`
+      INSERT IGNORE INTO usuario(id_usuario, id_persona, id_rol, username, password_hash)
+        VALUES(1, 1, 1, 'admin', ?)
+    `, [hash]);
+
+    // Configuración
+    await conn.query(`
+      INSERT IGNORE INTO configuracion(clave, valor, descripcion) VALUES
+        ('nombre_biblioteca',     'Biblioteca Municipal', 'Nombre de la biblioteca'),
+        ('max_dias_reserva',      '3',                   'Días máximos que se guarda una reserva'),
+        ('moneda',                'S/',                  'Símbolo de moneda local'),
+        ('correo_notificaciones', 'biblio@example.com',  'Correo para notificaciones')
+    `);
+
+    // Autores
+    await conn.query(`
+      INSERT IGNORE INTO autor(nombres, apellidos, nacionalidad) VALUES
+        ('José María', 'Arguedas',       'Peruana'),
+        ('Mario',      'Vargas Llosa',   'Peruana'),
+        ('Julio',      'Cortázar',       'Argentina'),
+        ('Jorge Luis', 'Borges',         'Argentina'),
+        ('Gabriel',    'García Márquez', 'Colombiana')
+    `);
+
+    // Editoriales
+    await conn.query(`
+      INSERT IGNORE INTO editorial(nombre, pais) VALUES
+        ('Alfaguara', 'España'),
+        ('Planeta',   'España'),
+        ('Losada',    'Argentina')
+    `);
+
+    // Categorías
+    await conn.query(`
+      INSERT IGNORE INTO categoria(nombre) VALUES
+        ('Literatura'),('Ciencia'),('Historia'),('Tecnología'),('Arte'),('Filosofía')
+    `);
+
+    // Libros
+    await conn.query(`
+      INSERT IGNORE INTO libro(id_libro, titulo, id_editorial, anio_publicacion, idioma) VALUES
+        (1, 'Los ríos profundos',           1, 1958, 'Español'),
+        (2, 'Conversación en La Catedral',  1, 1969, 'Español'),
+        (3, 'Rayuela',                      3, 1963, 'Español'),
+        (4, 'Ficciones',                    3, 1944, 'Español'),
+        (5, 'Cien años de soledad',         1, 1967, 'Español')
+    `);
+
+    await conn.query(`INSERT IGNORE INTO libro_autor VALUES(1,1),(2,2),(3,3),(4,4),(5,5)`);
+    await conn.query(`INSERT IGNORE INTO libro_categoria VALUES(1,1),(2,1),(3,1),(4,1),(5,1)`);
+
+    // Ejemplares
+    await conn.query(`
+      INSERT IGNORE INTO ejemplar(id_libro, codigo_barras, fecha_adquisicion) VALUES
+        (1,'L00001-01',CURDATE()),(1,'L00001-02',CURDATE()),
+        (2,'L00002-01',CURDATE()),
+        (3,'L00003-01',CURDATE()),(3,'L00003-02',CURDATE()),
+        (4,'L00004-01',CURDATE()),(4,'L00004-02',CURDATE()),(4,'L00004-03',CURDATE()),
+        (5,'L00005-01',CURDATE()),(5,'L00005-02',CURDATE())
+    `);
+
+    // Lectores de ejemplo
+    await conn.query(`
+      INSERT IGNORE INTO persona(id_persona, tipo_documento, numero_documento, nombres, apellidos, correo) VALUES
+        (2, 'DNI', '70000001', 'María',  'López',  'maria@example.com'),
+        (3, 'DNI', '70000002', 'Carlos', 'Ramos',  'carlos@example.com'),
+        (4, 'DNI', '70000003', 'Ana',    'Torres', 'ana@example.com')
+    `);
+    await conn.query(`
+      INSERT IGNORE INTO lector(id_lector, id_persona, id_tipo_lector, codigo_lector,
+                                fecha_inscripcion, fecha_vencimiento) VALUES
+        (1, 2, 1, 'LEC-0001', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR)),
+        (2, 3, 2, 'LEC-0002', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR)),
+        (3, 4, 1, 'LEC-0003', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR))
+    `);
+
+    console.log('✅ Seed completado. Usuario admin: admin / admin123');
+  } catch (err) {
+    console.error('❌ Error en initDB:', err.message);
+    throw err;
+  } finally {
+    conn.release();
   }
-
-  // Configuración del sistema
-  for (const [c, v, d] of [
-    ['nombre_biblioteca',     'Biblioteca Municipal', 'Nombre del sistema'],
-    ['moneda',                'S/',                   'Símbolo de moneda'],
-    ['max_dias_reserva',      '3',                    'Días máximos de reserva'],
-    ['correo_notificaciones', 'biblio@example.com',   'Correo para notificaciones'],
-  ]) {
-    ins("INSERT OR IGNORE INTO configuracion(clave,valor,descripcion) VALUES(?,?,?)", c, v, d);
-  }
-
-  // Guardar todo en disco
-  persist(db);
-
-  console.log('   ✔ Seed completado.');
-  console.log('   → Usuario: admin  |  Contraseña: admin123');
 }
 
 module.exports = initDB;

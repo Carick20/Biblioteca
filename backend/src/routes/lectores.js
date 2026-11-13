@@ -12,7 +12,7 @@ router.get('/', async (req, res, next) => {
       `SELECT lc.*,
               p.tipo_documento, p.numero_documento,
               p.nombres, p.apellidos, p.correo, p.telefono,
-              (p.nombres || ' ' || p.apellidos) AS nombre_completo,
+              CONCAT(p.nombres, ' ', p.apellidos) AS nombre_completo,
               t.nombre AS tipo_lector
        FROM lector lc
        JOIN persona    p ON p.id_persona     = lc.id_persona

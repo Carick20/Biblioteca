@@ -45,9 +45,9 @@ router.get('/dashboard', async (req, res, next) => {
 router.get('/prestamos-por-mes', async (req, res, next) => {
   try {
     const [rows] = await pool.query(
-      `SELECT strftime('%Y-%m', fecha_prestamo) AS mes, COUNT(*) AS total
+      `SELECT DATE_FORMAT(fecha_prestamo, '%Y-%m') AS mes, COUNT(*) AS total
        FROM prestamo
-       WHERE fecha_prestamo >= date('now', '-12 months')
+       WHERE fecha_prestamo >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
        GROUP BY mes
        ORDER BY mes`
     );

@@ -41,7 +41,7 @@ router.get('/', async (req, res, next) => {
     const [libros] = await pool.query(
       `SELECT l.*,
               ed.nombre AS editorial_nombre,
-              GROUP_CONCAT(DISTINCT (a.nombres || ' ' || COALESCE(a.apellidos,''))) AS autores,
+              GROUP_CONCAT(DISTINCT CONCAT(a.nombres, ' ', COALESCE(a.apellidos,''))) AS autores,
               GROUP_CONCAT(DISTINCT c.nombre) AS categorias,
               COUNT(DISTINCT e.id_ejemplar)   AS total_ejemplares,
               SUM(CASE WHEN e.estado='DISPONIBLE' THEN 1 ELSE 0 END) AS disponibles
@@ -82,7 +82,7 @@ router.get('/:id', async (req, res, next) => {
     const [rows] = await pool.query(
       `SELECT l.*,
               ed.nombre AS editorial_nombre,
-              GROUP_CONCAT(DISTINCT (a.nombres || ' ' || COALESCE(a.apellidos,''))) AS autores,
+              GROUP_CONCAT(DISTINCT CONCAT(a.nombres, ' ', COALESCE(a.apellidos,''))) AS autores,
               GROUP_CONCAT(DISTINCT c.nombre) AS categorias
        FROM libro l
        LEFT JOIN editorial      ed ON ed.id_editorial  = l.id_editorial
@@ -156,7 +156,7 @@ router.post('/', upload.single('portada'), async (req, res, next) => {
       const id_autor = ax.length
         ? ax[0].id_autor
         : (await conn.query('INSERT INTO autor(nombres,apellidos) VALUES(?,?)', [nombres, apellidos]))[0].insertId;
-      await conn.query('INSERT OR IGNORE INTO libro_autor(id_libro,id_autor) VALUES(?,?)', [id_libro, id_autor]);
+      await conn.query('INSERT IGNORE INTO libro_autor(id_libro,id_autor) VALUES(?,?)', [id_libro, id_autor]);
     }
 
     // Categorías
@@ -167,7 +167,7 @@ router.post('/', upload.single('portada'), async (req, res, next) => {
       const id_cat = cx.length
         ? cx[0].id_categoria
         : (await conn.query('INSERT INTO categoria(nombre) VALUES(?)', [nombreCat.trim()]))[0].insertId;
-      await conn.query('INSERT OR IGNORE INTO libro_categoria(id_libro,id_categoria) VALUES(?,?)', [id_libro, id_cat]);
+      await conn.query('INSERT IGNORE INTO libro_categoria(id_libro,id_categoria) VALUES(?,?)', [id_libro, id_cat]);
     }
 
     // Ejemplares
