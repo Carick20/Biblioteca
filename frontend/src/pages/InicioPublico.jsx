@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 export default function InicioPublico() {
   const [stats,      setStats]      = useState(null);
   const [destacados, setDestacados] = useState([]);
   const [search,     setSearch]     = useState('');
   const navigate = useNavigate();
+  const { isLector, lectorData, logoutLector } = useAuth();
 
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dark_mode') === 'true');
 
@@ -39,7 +41,22 @@ export default function InicioPublico() {
           <div className="pub-nav-links">
             <Link to="/"            className="pub-nav-link active">Inicio</Link>
             <Link to="/catalogo"    className="pub-nav-link">Catálogo</Link>
-            <Link to="/lector-login" className="pub-nav-link pub-nav-login">Mi biblioteca</Link>
+            {isLector ? (
+              <>
+                <Link to="/mi-biblioteca" className="pub-nav-link" style={{ fontWeight: 600 }}>
+                  👤 {lectorData?.nombre?.split(' ')[0]}
+                </Link>
+                <button
+                  className="pub-nav-link pub-nav-login"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  onClick={() => logoutLector()}
+                >
+                  Salir
+                </button>
+              </>
+            ) : (
+              <Link to="/lector-login" className="pub-nav-link pub-nav-login">Mi biblioteca</Link>
+            )}
             <button
               className="btn-theme-toggle"
               onClick={() => setDarkMode(d => !d)}

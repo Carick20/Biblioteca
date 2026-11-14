@@ -340,8 +340,8 @@ tbody tr:hover { background: rgba(0, 122, 255, 0.04); }
   --pub-card-r:    20px;
 }
 
-.pub-page { min-height: 100vh; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; transition: background 0.3s ease; }
-.pub-container { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
+.pub-page { min-height: 100vh; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; transition: background 0.3s ease; display: flex; flex-direction: column; }
+.pub-page-body { flex: 1; }.pub-container { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
 
 /* ── Navbar pública ───────────────────────────────────────── */
 .pub-nav { background: var(--surface); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
@@ -530,3 +530,30 @@ tbody tr:hover { background: rgba(0, 122, 255, 0.04); }
 .pub-page td { padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: .92rem; vertical-align: middle; color: var(--text); }
 .pub-page tr:last-child td { border-bottom: none; }
 .pub-page tbody tr:hover { background: rgba(0, 122, 255, 0.04); }
+
+/* ── Alertas ────────────────────────────────────────────────── */
+.alert {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: .9rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.alert-error   { background: rgba(255,59,48,0.12);  border: 1px solid rgba(255,59,48,0.3);  color: #d70015; }
+.alert-success { background: rgba(52,199,89,0.12);  border: 1px solid rgba(52,199,89,0.3);  color: #248a3d; }
+.alert-info    { background: rgba(0,122,255,0.10);  border: 1px solid rgba(0,122,255,0.25); color: #0056b3; }
+
+body.dark-mode .alert-error   { color: #ff6961; }
+body.dark-mode .alert-success { color: #34c759; }
+body.dark-mode .alert-info    { color: #64b5ff; }
+
+/* ── Utilidades ─────────────────────────────────────────────── */
+.mt-2        { margin-top: 8px; }
+.mt-3        { margin-top: 16px; }
+.text-muted  { color: var(--muted); font-size: .82rem; margin-top: 4px; display: block; }
+.text-danger { color: var(--danger); }
+
+/* Spinner */
+@keyframes spinApple {
+  to { transform: rotate(360deg); }
+}

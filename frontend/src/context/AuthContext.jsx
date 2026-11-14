@@ -2,10 +2,8 @@
  * AuthContext.jsx
  * ─────────────────────────────────────────────────────────────
  * Dos sesiones completamente separadas en localStorage:
- *   admin → claves: 'admin_token' / 'admin_user'
+ *   admin  → claves: 'admin_token'  / 'admin_user'
  *   lector → claves: 'lector_token' / 'lector_data'
- *
- * Nunca colisionan entre sí.
  * ─────────────────────────────────────────────────────────────
  */
 import { createContext, useContext, useState, useCallback } from 'react';
@@ -39,8 +37,12 @@ export function AuthProvider({ children }) {
     try { return JSON.parse(localStorage.getItem('lector_data')); } catch { return null; }
   });
 
-  const loginLector = useCallback(async (numero_documento, codigo_lector) => {
-    const { data } = await api.post('/auth/lector-login', { numero_documento, codigo_lector });
+  /**
+   * loginLector({ correo?, numero_documento?, password })
+   * Acepta correo O numero_documento como identificador.
+   */
+  const loginLector = useCallback(async (credenciales) => {
+    const { data } = await api.post('/auth/lector-login', credenciales);
     localStorage.setItem('lector_token', data.token);
     localStorage.setItem('lector_data', JSON.stringify(data.lector));
     setLectorData(data.lector);

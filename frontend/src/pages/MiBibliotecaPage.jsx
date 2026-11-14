@@ -13,63 +13,73 @@ export default function MiBibliotecaPage() {
   const [multas,    setMultas]    = useState([]);
   const [perfil,    setPerfil]    = useState(null);
   const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState('');
+  const [errors,    setErrors]    = useState({});
+
+  // Dark mode — respeta el estado global del sitio
+  const [darkMode, setDarkMode] = useState(
+    () => localStorage.getItem('dark_mode') === 'true'
+  );
+  useEffect(() => {
+    if (darkMode) document.body.classList.add('dark-mode');
+    else          document.body.classList.remove('dark-mode');
+    localStorage.setItem('dark_mode', darkMode);
+  }, [darkMode]);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
+    Promise.allSettled([
       api.get('/mi-biblioteca/prestamos'),
       api.get('/mi-biblioteca/historial'),
       api.get('/mi-biblioteca/multas'),
       api.get('/mi-biblioteca/perfil'),
-    ])
-      .then(([p, h, m, pf]) => {
-        setPrestamos(p.data);
-        setHistorial(h.data);
-        setMultas(m.data);
-        setPerfil(pf.data);
-      })
-      .catch(() => setError('No se pudieron cargar tus datos. Intenta recargar.'))
-      .finally(() => setLoading(false));
+    ]).then(([p, h, m, pf]) => {
+      const errs = {};
+      if (p.status  === 'fulfilled') setPrestamos(p.value.data); else errs.prestamos = true;
+      if (h.status  === 'fulfilled') setHistorial(h.value.data); else errs.historial  = true;
+      if (m.status  === 'fulfilled') setMultas(m.value.data);    else errs.multas     = true;
+      if (pf.status === 'fulfilled') setPerfil(pf.value.data);   else errs.perfil     = true;
+      setErrors(errs);
+    }).finally(() => setLoading(false));
   }, []);
 
-  const handleLogout = () => {
-    logoutLector();
-    navigate('/', { replace: true });
-  };
+  const handleLogout = () => { logoutLector(); navigate('/', { replace: true }); };
 
   const multasPendientes = multas.filter(m => m.estado === 'PENDIENTE');
-  const totalMulta = multasPendientes.reduce((s, m) => s + parseFloat(m.monto), 0);
+  const totalMulta = multasPendientes.reduce((s, m) => s + parseFloat(m.monto || 0), 0);
 
   return (
     <div className="pub-page">
+
       {/* Navbar lector */}
       <nav className="pub-nav" style={{ background: 'var(--primary)' }}>
-        <div className="pub-container pub-nav-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Link to="/" className="pub-nav-brand" style={{ color: '#fff', fontWeight: 700 }}>
-            Mi Biblioteca
+        <div className="pub-container pub-nav-inner">
+          <Link to="/" style={{ color: '#fff', fontWeight: 800, fontSize: '1.2rem', letterSpacing: '-0.02em' }}>
+            📚 Mi Biblioteca
           </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span style={{ color: 'rgba(255,255,255,.85)', fontSize: '.9rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ color: 'rgba(255,255,255,.85)', fontSize: '.9rem', fontWeight: 500 }}>
               {lectorData?.nombre}
             </span>
             <button
-              className="btn-logout"
-              onClick={handleLogout}
-              title="Cerrar sesión"
+              className="btn-theme-toggle"
+              onClick={() => setDarkMode(d => !d)}
+              title="Cambiar tema"
+              style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
             >
-              Salir
+              {darkMode ? '☀️' : '🌙'}
             </button>
+            <button className="btn-logout" onClick={handleLogout}>Salir</button>
           </div>
         </div>
       </nav>
 
-      <div className="pub-container" style={{ paddingTop: 32, paddingBottom: 64 }}>
+      {/* Contenido principal — flex:1 empuja el footer al fondo */}
+      <div className="pub-container" style={{ paddingTop: 32, paddingBottom: 64, flex: 1 }}>
 
         {/* Bienvenida */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ color: 'var(--primary)', marginBottom: 4 }}>
-            Hola, {lectorData?.nombre?.split(' ')[0]}
+            Hola, {lectorData?.nombre?.split(' ')[0]} 👋
           </h1>
           <p style={{ color: 'var(--muted)' }}>
             Código: <strong>{lectorData?.codigo_lector}</strong>
@@ -78,28 +88,30 @@ export default function MiBibliotecaPage() {
         </div>
 
         {/* Resumen rápido */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 16, marginBottom: 32 }}>
+        <div className="stats-grid" style={{ marginBottom: 32 }}>
           {[
-            { val: prestamos.length,         lbl: 'Préstamos activos' },
-            { val: historial.length,          lbl: 'Total historial' },
-            { val: multasPendientes.length,  lbl: 'Multas pendientes' },
-            { val: `S/ ${totalMulta.toFixed(2)}`, lbl: 'Monto a pagar' },
+            { val: loading ? '…' : prestamos.length,              lbl: 'Préstamos activos' },
+            { val: loading ? '…' : historial.length,              lbl: 'Total historial'   },
+            { val: loading ? '…' : multasPendientes.length,       lbl: 'Multas pendientes' },
+            { val: loading ? '…' : `S/ ${totalMulta.toFixed(2)}`, lbl: 'Monto a pagar'    },
           ].map(c => (
-            <div key={c.lbl} style={{
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)', padding: '16px 20px', textAlign: 'center',
-              boxShadow: 'var(--shadow)'
-            }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>{c.val}</div>
-              <div style={{ fontSize: '.8rem', color: 'var(--muted)' }}>{c.lbl}</div>
+            <div key={c.lbl} className="stat-card">
+              <div className="stat-value">{c.val}</div>
+              <div className="stat-label">{c.lbl}</div>
             </div>
           ))}
         </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        {/* Error parcial */}
+        {Object.keys(errors).length > 0 && (
+          <div className="alert alert-error" style={{ marginBottom: 16 }}>
+            No se pudieron cargar algunas secciones ({Object.keys(errors).join(', ')}).
+            Intenta recargar la página.
+          </div>
+        )}
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
           {[
             ['prestamos', 'Préstamos activos'],
             ['historial', 'Historial'],
@@ -112,17 +124,33 @@ export default function MiBibliotecaPage() {
               className={`btn btn-sm ${tab === k ? 'btn-primary' : 'btn-outline'}`}
             >
               {l}
+              {k === 'multas' && multasPendientes.length > 0 && (
+                <span style={{
+                  background: 'var(--danger)', color: '#fff',
+                  borderRadius: '50%', width: 18, height: 18,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '.7rem', fontWeight: 700, marginLeft: 6,
+                }}>
+                  {multasPendientes.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
 
         {loading ? (
           <div className="pub-loading">
-            <div style={{ width: '48px', height: '48px', border: '4px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spinApple 1s linear infinite', margin: '0 auto' }}></div>
+            <div style={{
+              width: 48, height: 48,
+              border: '4px solid var(--border)',
+              borderTopColor: 'var(--primary)',
+              borderRadius: '50%',
+              animation: 'spinApple 1s linear infinite',
+              margin: '0 auto',
+            }} />
             <p>Cargando tus datos…</p>
           </div>
         ) : (
-
           <>
             {/* ── Préstamos activos ── */}
             {tab === 'prestamos' && (
@@ -136,11 +164,7 @@ export default function MiBibliotecaPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>Libro</th>
-                        <th>Ejemplar</th>
-                        <th>Fecha préstamo</th>
-                        <th>Vence</th>
-                        <th>Estado</th>
+                        <th>Libro</th><th>Ejemplar</th><th>Fecha préstamo</th><th>Vence</th><th>Estado</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -158,8 +182,7 @@ export default function MiBibliotecaPage() {
                           <td>
                             {p.dias_vencido > 0
                               ? <span className="badge badge-danger">Vencido</span>
-                              : <span className="badge badge-success">Activo</span>
-                            }
+                              : <span className="badge badge-success">Activo</span>}
                             {p.renovaciones > 0 && (
                               <span className="badge badge-primary" style={{ marginLeft: 4 }}>
                                 {p.renovaciones} renov.
@@ -177,19 +200,13 @@ export default function MiBibliotecaPage() {
             {/* ── Historial ── */}
             {tab === 'historial' && (
               historial.length === 0 ? (
-                <div className="pub-empty">
-                  <p>Sin historial de préstamos aún.</p>
-                </div>
+                <div className="pub-empty"><p>Sin historial de préstamos aún.</p></div>
               ) : (
                 <div className="table-container">
                   <table>
                     <thead>
                       <tr>
-                        <th>Libro</th>
-                        <th>Código barras</th>
-                        <th>Fecha préstamo</th>
-                        <th>Fecha devolución</th>
-                        <th>Estado</th>
+                        <th>Libro</th><th>Código</th><th>Fecha préstamo</th><th>Devolución</th><th>Estado</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -221,15 +238,13 @@ export default function MiBibliotecaPage() {
             {/* ── Multas ── */}
             {tab === 'multas' && (
               multas.length === 0 ? (
-                <div className="pub-empty">
-                  <p>No tienes multas registradas. ¡Excelente!</p>
-                </div>
+                <div className="pub-empty"><p>No tienes multas registradas. ¡Excelente! 🎉</p></div>
               ) : (
                 <>
                   {multasPendientes.length > 0 && (
                     <div className="alert alert-error" style={{ marginBottom: 16 }}>
-                      Tienes <strong>{multasPendientes.length}</strong> multa(s) pendiente(s) por un
-                      total de <strong>S/ {totalMulta.toFixed(2)}</strong>.
+                      Tienes <strong>{multasPendientes.length}</strong> multa(s) pendiente(s)
+                      por un total de <strong>S/ {totalMulta.toFixed(2)}</strong>.
                       Acércate a biblioteca para regularizar.
                     </div>
                   )}
@@ -262,54 +277,55 @@ export default function MiBibliotecaPage() {
             )}
 
             {/* ── Perfil ── */}
-            {tab === 'perfil' && perfil && (
-              <div style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '28px 32px',
-                maxWidth: 480,
-                boxShadow: 'var(--shadow)',
-              }}>
-                <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>Datos del lector</h3>
-                {[
-                  ['Nombre',           `${perfil.nombres} ${perfil.apellidos}`],
-                  ['Documento',        `${perfil.tipo_documento}: ${perfil.numero_documento}`],
-                  ['Código de lector', perfil.codigo_lector],
-                  ['Tipo de lector',   perfil.tipo_lector],
-                  ['Correo',           perfil.correo || '—'],
-                  ['Teléfono',         perfil.telefono || '—'],
-                  ['Inscripción',      perfil.fecha_inscripcion],
-                  ['Vencimiento',      perfil.fecha_vencimiento || '—'],
-                  ['Estado',           perfil.estado],
-                ].map(([lbl, val]) => (
-                  <div key={lbl} style={{
-                    display: 'flex', justifyContent: 'space-between',
-                    padding: '8px 0', borderBottom: '1px solid var(--border)',
-                    fontSize: '.9rem',
-                  }}>
-                    <span style={{ color: 'var(--muted)', fontWeight: 500 }}>{lbl}</span>
-                    <span style={{ fontWeight: 600, textAlign: 'right' }}>{val}</span>
+            {tab === 'perfil' && (
+              perfil ? (
+                <div className="card" style={{ maxWidth: 500 }}>
+                  <div className="card-header">
+                    <h2>Datos del lector</h2>
                   </div>
-                ))}
-              </div>
+                  {[
+                    ['Nombre',           `${perfil.nombres} ${perfil.apellidos}`],
+                    ['Documento',        `${perfil.tipo_documento}: ${perfil.numero_documento}`],
+                    ['Código de lector', perfil.codigo_lector],
+                    ['Tipo de lector',   perfil.tipo_lector],
+                    ['Correo',           perfil.correo || '—'],
+                    ['Teléfono',         perfil.telefono || '—'],
+                    ['Inscripción',      perfil.fecha_inscripcion],
+                    ['Vencimiento',      perfil.fecha_vencimiento || '—'],
+                    ['Estado',           perfil.estado],
+                  ].map(([lbl, val]) => (
+                    <div key={lbl} style={{
+                      display: 'flex', justifyContent: 'space-between',
+                      padding: '10px 0', borderBottom: '1px solid var(--border)',
+                      fontSize: '.9rem',
+                    }}>
+                      <span style={{ color: 'var(--muted)', fontWeight: 600 }}>{lbl}</span>
+                      <span style={{ fontWeight: 700, textAlign: 'right', color: 'var(--text)' }}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="pub-empty"><p>No se pudo cargar el perfil.</p></div>
+              )
             )}
           </>
         )}
 
         <div style={{ marginTop: 32, textAlign: 'center' }}>
           <Link to="/catalogo" className="pub-btn-primary">
-            Explorar catálogo
+            Explorar catálogo →
           </Link>
         </div>
-      </div>
+
+      </div>{/* fin pub-container */}
 
       <footer className="pub-footer">
         <div className="pub-container">
-          <span>Biblioteca Municipal</span>
+          <span>📚 Biblioteca Municipal</span>
           <span>© {new Date().getFullYear()}</span>
         </div>
       </footer>
+
     </div>
   );
 }

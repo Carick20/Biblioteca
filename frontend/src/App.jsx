@@ -9,6 +9,7 @@ import DetalleLibro     from './pages/DetalleLibro';
 // ── Autenticación ──────────────────────────────────────────────
 import LoginPage        from './pages/LoginPage';        // admin
 import LectorLoginPage  from './pages/LectorLoginPage';  // lector
+import LectorRegisterPage from './pages/LectorRegisterPage'; // registro lector
 
 // ── Portal del lector (autenticado como lector) ────────────────
 import MiBibliotecaPage from './pages/MiBibliotecaPage';
@@ -100,6 +101,11 @@ export default function App() {
       {/* ══ LOGIN LECTOR — redirige si ya autenticado ═══════ */}
       <Route path="/lector-login" element={
         <LectorAlreadyLogged><LectorLoginPage /></LectorAlreadyLogged>
+      } />
+
+      {/* ══ REGISTRO LECTOR — redirige si ya autenticado ════ */}
+      <Route path="/lector-registro" element={
+        <LectorAlreadyLogged><LectorRegisterPage /></LectorAlreadyLogged>
       } />
 
       {/* ══ PORTAL DEL LECTOR ═══════════════════════════════

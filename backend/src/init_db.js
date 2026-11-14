@@ -47,6 +47,7 @@ async function initDB() {
         fecha_inscripcion DATE        NOT NULL,
         fecha_vencimiento DATE,
         estado            VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+        password_hash     VARCHAR(255),
         FOREIGN KEY (id_persona)     REFERENCES persona(id_persona)           ON DELETE RESTRICT,
         FOREIGN KEY (id_tipo_lector) REFERENCES tipo_lector(id_tipo_lector)   ON DELETE RESTRICT
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -289,6 +290,17 @@ async function initDB() {
     `);
 
     console.log('✅ Tablas creadas / verificadas.');
+
+    // ── Migración: añadir password_hash a lector si no existe ─
+    try {
+      await conn.query(`
+        ALTER TABLE lector ADD COLUMN password_hash VARCHAR(255) NULL
+      `);
+      console.log('✅ Columna password_hash añadida a lector.');
+    } catch (e) {
+      // Error 1060 = columna ya existe, se ignora
+      if (e.errno !== 1060) throw e;
+    }
 
     // ── Seed: solo si no hay datos ────────────────────────────
     const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM rol');

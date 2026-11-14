@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function CatalogoPublico() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -15,6 +16,7 @@ export default function CatalogoPublico() {
   const LIMIT = 12;
 
   const { showToast } = useToast();
+  const { isLector, lectorData, logoutLector } = useAuth();
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dark_mode') === 'true');
 
   useEffect(() => {
@@ -69,7 +71,22 @@ export default function CatalogoPublico() {
           <div className="pub-nav-links">
             <Link to="/"            className="pub-nav-link">Inicio</Link>
             <Link to="/catalogo"    className="pub-nav-link active">Catálogo</Link>
-            <Link to="/lector-login" className="pub-nav-link pub-nav-login">Mi biblioteca</Link>
+            {isLector ? (
+              <>
+                <Link to="/mi-biblioteca" className="pub-nav-link" style={{ fontWeight: 600 }}>
+                  👤 {lectorData?.nombre?.split(' ')[0]}
+                </Link>
+                <button
+                  className="pub-nav-link pub-nav-login"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  onClick={() => logoutLector()}
+                >
+                  Salir
+                </button>
+              </>
+            ) : (
+              <Link to="/lector-login" className="pub-nav-link pub-nav-login">Mi biblioteca</Link>
+            )}
             <button
               className="btn-theme-toggle"
               onClick={() => setDarkMode(d => !d)}

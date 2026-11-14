@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 export default function DetalleLibro() {
   const { id } = useParams();
-  const [libro,   setLibro]   = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+  const navigate = useNavigate();
+  const { isLector, lectorData, logoutLector } = useAuth();
+
+  const [libro,          setLibro]          = useState(null);
+  const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState('');
+  const [solicitando,    setSolicitando]    = useState(false);
+  const [prestamoMsg,    setPrestamoMsg]    = useState('');
+  const [prestamoError,  setPrestamoError]  = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -16,16 +24,52 @@ export default function DetalleLibro() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const handleSolicitarPrestamo = async () => {
+    if (!isLector) {
+      // Guardar destino para volver aquí tras el login
+      navigate('/lector-login', { state: { from: `/libro/${id}` } });
+      return;
+    }
+    setSolicitando(true);
+    setPrestamoMsg('');
+    setPrestamoError('');
+    try {
+      const { data } = await api.post('/mi-biblioteca/solicitar-prestamo', { id_libro: parseInt(id, 10) });
+      setPrestamoMsg(data.message);
+      // Actualizar disponibilidad localmente
+      setLibro(prev => prev ? { ...prev, disponibles: prev.disponibles - 1 } : prev);
+    } catch (err) {
+      setPrestamoError(err.response?.data?.message || 'Error al solicitar el préstamo.');
+    } finally {
+      setSolicitando(false);
+    }
+  };
+
   return (
     <div className="pub-page">
       {/* Navbar */}
       <nav className="pub-nav">
         <div className="pub-container pub-nav-inner">
-          <Link to="/" className="pub-nav-brand">Biblioteca</Link>
+          <Link to="/" className="pub-nav-brand">📚 Biblioteca</Link>
           <div className="pub-nav-links">
-            <Link to="/"             className="pub-nav-link">Inicio</Link>
-            <Link to="/catalogo"     className="pub-nav-link">Catálogo</Link>
-            <Link to="/lector-login" className="pub-nav-link pub-nav-login">Mi biblioteca</Link>
+            <Link to="/"         className="pub-nav-link">Inicio</Link>
+            <Link to="/catalogo" className="pub-nav-link">Catálogo</Link>
+            {isLector ? (
+              <>
+                <Link to="/mi-biblioteca" className="pub-nav-link" style={{ fontWeight: 600 }}>
+                  👤 {lectorData?.nombre?.split(' ')[0]}
+                </Link>
+                <button
+                  className="pub-nav-link pub-nav-login"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  onClick={() => { logoutLector(); }}
+                >
+                  Salir
+                </button>
+              </>
+            ) : (
+              <Link to="/lector-login" className="pub-nav-link pub-nav-login">Mi biblioteca</Link>
+            )}
           </div>
         </div>
       </nav>
@@ -130,13 +174,35 @@ export default function DetalleLibro() {
                 </div>
               )}
 
+              {/* Mensajes de solicitud */}
+              {prestamoMsg && (
+                <div className="alert alert-success" style={{ marginTop: 12 }}>
+                  ✅ {prestamoMsg}{' '}
+                  <Link to="/mi-biblioteca" style={{ fontWeight: 600 }}>Ver mis préstamos →</Link>
+                </div>
+              )}
+              {prestamoError && (
+                <div className="alert alert-error" style={{ marginTop: 12 }}>
+                  {prestamoError}
+                </div>
+              )}
+
               {/* Acciones */}
               <div className="pub-detail-actions">
                 <Link to="/catalogo" className="pub-btn-ghost">← Volver al catálogo</Link>
-                {libro.disponibles > 0 && (
-                  <Link to="/lector-login" state={{ from: '/mi-biblioteca' }} className="pub-btn-primary">
-                    Solicitar préstamo →
-                  </Link>
+
+                {libro.disponibles > 0 && !prestamoMsg && (
+                  <button
+                    className="pub-btn-primary"
+                    onClick={handleSolicitarPrestamo}
+                    disabled={solicitando}
+                  >
+                    {solicitando
+                      ? 'Procesando…'
+                      : isLector
+                        ? '📖 Solicitar préstamo'
+                        : '🔑 Iniciar sesión para pedir prestado'}
+                  </button>
                 )}
               </div>
             </div>
